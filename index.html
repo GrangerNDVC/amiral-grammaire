@@ -99,6 +99,8 @@
             max-height: 90vh; overflow-y: auto; transition: max-width 0.2s;
         }
         .modal-box.wide { max-width: 1150px; }
+        #q-timer { display: none; font-size: 1.8em; font-weight: 900; color: var(--hit-color); margin-bottom: 10px; }
+        #q-timer.low { animation: flashTurn 0.5s infinite; }
         .sentence { font-size: 1.5em; padding: 25px; background: #ecf0f1; border-left: 5px solid var(--gold-accent); margin: 25px 0; font-family: 'Georgia', serif; color: #2c3e50; }
         .highlight { color: #d35400; font-weight: bold; border-bottom: 2px solid #d35400; }
         .options-container { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
@@ -187,6 +189,15 @@
         <div class="option-desc" id="level4-desc"></div>
     </div>
 
+    <div id="chrono-screen" class="screen">
+        <h2>⏱ Chrono des réponses</h2>
+        <p>Combien de temps pour répondre à chaque question ?</p>
+        <button class="btn" onclick="setChronoAndProceed(null)">🕊 Pas de limite</button>
+        <button class="btn" onclick="setChronoAndProceed(10)">🐢 10 secondes</button>
+        <button class="btn" onclick="setChronoAndProceed(5)">🐇 5 secondes</button>
+        <button class="btn btn-dark" onclick="setChronoAndProceed(3)">⚡ 3 secondes</button>
+    </div>
+
     <div id="mode-screen" class="screen">
         <h2>⚫ Stratège Suprême — Choisissez votre adversaire</h2>
         <p style="background:#fdf2e3; border-left:4px solid var(--gold-accent); padding:10px 15px; text-align:left; max-width:600px; margin:0 auto 15px; font-size:0.9em;">⚠️ Règle spéciale à ce niveau : chaque joueur ne tire qu'<strong>une seule fois par tour</strong>, à tour de rôle — que la réponse soit juste ou fausse, touché ou manqué.</p>
@@ -259,6 +270,7 @@
     <div id="question-modal" class="overlay">
         <div class="modal-box">
             <h3 style="color:var(--deep-ocean)">🔍 ANALYSE TACTIQUE</h3>
+            <div id="q-timer"></div>
             <p>Identifiez la fonction du mot ou groupe souligné :</p>
             <div id="q-sentence" class="sentence"></div>
             <div id="q-options" class="options-container"></div>
@@ -578,6 +590,8 @@ let game = {
     pendingAction: null,
     levelsWon: new Set(),  // niveaux 1-3 remportés cette session (débloque le niveau 4)
     testMode: false,       // mode développeur : débloque le niveau 4 + place/gagne instantanément
+    timerSeconds: null,    // chrono par question au niveau 4 (null = pas de limite)
+    currentQuestion: null,
     // --- état du duel à distance ---
     roomCode: null, myRole: null, room: null, myName: null,
     remoteGrid: null, remoteShips: [], remotePlacementStarted: false
@@ -672,7 +686,7 @@ function updateLevel4Lock() {
     if (unlocked) {
         btn.classList.remove('btn-locked'); btn.classList.add('btn-dark');
         btn.innerHTML = '⚫ Stratège Suprême (Grille XL)';
-        btn.onclick = () => showScreen('mode-screen');
+        btn.onclick = () => showScreen('chrono-screen');
         desc.innerText = "Toutes les fonctions, sans indice - IA ou duel à distance contre un camarade !";
     } else {
         btn.classList.add('btn-locked'); btn.classList.remove('btn-dark');
@@ -684,6 +698,7 @@ function updateLevel4Lock() {
 }
 
 function showDifficultyScreen() { showScreen('difficulty-screen'); }
+function setChronoAndProceed(seconds) { game.timerSeconds = seconds; showScreen('mode-screen'); }
 function setDifficultyAndProceed(chance) { initGame(4, chance); }
 function selectRemote() { game.mode = 'remote'; showScreen('remote-screen'); document.getElementById('remote-status').innerText = ''; }
 
@@ -801,6 +816,7 @@ function handlePlayerAttack(x, y) {
 function askQuestion() {
     const qList = database.filter(q => q.lvl <= Math.min(game.level, 3));
     const q = qList[Math.floor(Math.random() * qList.length)];
+    game.currentQuestion = q;
 
     document.getElementById('q-sentence').innerHTML = q.sentence.replace(/\[(.*?)\]/, '<span class="highlight">$1</span>');
 
@@ -832,9 +848,47 @@ function askQuestion() {
         });
     }
     document.getElementById('question-modal').style.display = 'flex';
+    startQuestionTimer();
+}
+
+/* ================= CHRONO DES QUESTIONS ================= */
+let questionTimerInterval = null;
+function getActiveTimerSeconds() {
+    if (game.level !== 4) return null;
+    if (game.mode === 'remote') return (game.room && game.room.timerSeconds) || null;
+    return game.timerSeconds || null;
+}
+function startQuestionTimer() {
+    clearQuestionTimer();
+    const timerEl = document.getElementById('q-timer');
+    const seconds = getActiveTimerSeconds();
+    if (!seconds) { timerEl.style.display = 'none'; return; }
+    let remaining = seconds;
+    timerEl.style.display = 'block';
+    timerEl.classList.remove('low');
+    timerEl.innerText = `⏱ ${remaining}`;
+    questionTimerInterval = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) {
+            clearQuestionTimer();
+            timerEl.innerText = `⏱ 0`;
+            handleTimeUp();
+        } else {
+            timerEl.innerText = `⏱ ${remaining}`;
+            if (remaining <= 2) timerEl.classList.add('low');
+        }
+    }, 1000);
+}
+function clearQuestionTimer() {
+    if (questionTimerInterval) { clearInterval(questionTimerInterval); questionTimerInterval = null; }
+}
+function handleTimeUp() {
+    if (!game.currentQuestion) return;
+    handleAnswerSelected(null, game.currentQuestion); // null ne correspond à aucune fonction -> compté comme faux
 }
 
 function handleAnswerSelected(ans, qObj) {
+    clearQuestionTimer();
     if (game.mode === 'remote') processRemoteAnswer(ans, qObj);
     else processLocalAnswer(ans, qObj);
 }
@@ -843,9 +897,10 @@ function processLocalAnswer(ans, qObj) {
     document.getElementById('question-modal').style.display = 'none';
     const { x, y } = game.target;
     const isCorrect = (ans === qObj.func);
+    const timeUp = (ans === null);
     let isHit = isCorrect && game.cGrid[y][x] === 1;
 
-    showFeedback(isCorrect, isHit, qObj.func, qObj.expl);
+    showFeedback(isCorrect, isHit, qObj.func, qObj.expl, timeUp);
 
     game.pendingAction = () => {
         if (isCorrect) game.cGrid[y][x] = isHit ? 3 : 2;
@@ -877,7 +932,7 @@ function updateTurnIndicator(msg, active) {
 }
 
 /* ================= FEEDBACK ================= */
-function showFeedback(isCorrect, isHit, correctFunc, explanation) {
+function showFeedback(isCorrect, isHit, correctFunc, explanation, timeUp) {
     const overlay = document.getElementById('feedback-overlay');
     const iconCont = document.getElementById('fb-icon-container');
     const title = document.getElementById('fb-title');
@@ -895,7 +950,7 @@ function showFeedback(isCorrect, isHit, correctFunc, explanation) {
         }
     } else {
         iconCont.innerHTML = `<svg class="feedback-icon skull-svg" viewBox="0 0 24 24"><path d="M12,2C15.86,2 19,5.13 19,9C19,14.25 12,22 12,22C12,22 5,14.25 5,9C5,5.13 8.14,2 12,2M10,7A2,2 0 0,0 8,9A2,2 0 0,0 10,11A2,2 0 0,0 12,9A2,2 0 0,0 10,7M14,7A2,2 0 0,0 12,9A2,2 0 0,0 14,11A2,2 0 0,0 16,9A2,2 0 0,0 14,7Z" /></svg>`;
-        title.innerHTML = "ERREUR"; title.style.color = "#7f8c8d";
+        title.innerHTML = timeUp ? "⏰ TEMPS ÉCOULÉ !" : "ERREUR"; title.style.color = "#7f8c8d";
         sub.innerHTML = `La réponse était : <strong>${correctFunc}</strong>.<br>L'ennemi contre-attaque !`;
     }
     expl.innerHTML = "💡 " + explanation;
@@ -975,7 +1030,7 @@ function createRemoteRoom() {
     const roomData = {
         createdAt: firebase.database.ServerValue.TIMESTAMP,
         status: 'waiting', size: levels[4].size, shipsConfig: levels[4].ships,
-        turn: 'p1', winner: null,
+        turn: 'p1', winner: null, timerSeconds: game.timerSeconds,
         players: { p1: { ships: null, incoming: {}, ready: false, name: name }, p2: null }
     };
     fbDb.ref('rooms/' + code).set(roomData).then(() => {
@@ -1101,11 +1156,12 @@ function processRemoteAnswer(ans, qObj) {
     document.getElementById('question-modal').style.display = 'none';
     const { x, y } = game.target;
     const isCorrect = (ans === qObj.func);
+    const timeUp = (ans === null);
     const oppRole = game.myRole === 'p1' ? 'p2' : 'p1';
     const oppShips = (game.room.players[oppRole] && game.room.players[oppRole].ships) || [];
     let isHit = isCorrect && oppShips.some(ship => ship.some(c => c.x === x && c.y === y));
 
-    showFeedback(isCorrect, isHit, qObj.func, qObj.expl);
+    showFeedback(isCorrect, isHit, qObj.func, qObj.expl, timeUp);
 
     game.pendingAction = () => {
         const updates = {};
