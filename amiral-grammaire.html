@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bataille Navale - L'Amiral Grammaire</title>
+    <style>
+        :root {
+            --deep-ocean: #051626;
+            --surface-water: #1a4b77;
+            --gold-accent: #d4af37;
+            --steel-grey: #7a8b99;
+            --hit-color: #e74c3c;
+            --miss-color: #85c1e9;
+            --panel-bg: rgba(255, 255, 255, 0.97);
+            --shadow-elevation: 0 15px 35px rgba(0, 0, 0, 0.6);
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            background: radial-gradient(circle at top, #2c3e50 0%, #000000 100%);
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+        }
+
+        /* --- ÉLÉMENTS GRAPHIQUES --- */
+        .logo-area { text-align: center; margin-bottom: 20px; animation: floatShip 4s ease-in-out infinite; }
+        .main-icon { width: 80px; height: 80px; fill: var(--gold-accent); filter: drop-shadow(0 0 10px rgba(212, 175, 55, 0.5)); }
+        @keyframes floatShip { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
+        h1 { color: var(--gold-accent); text-transform: uppercase; font-size: 2.5em; margin: 0; text-shadow: 0 4px 10px rgba(0,0,0,0.8); letter-spacing: 3px; font-weight: 900; }
+
+        /* --- CONTENEURS --- */
+        .screen {
+            background: var(--panel-bg); padding: 30px; border-radius: 15px;
+            box-shadow: var(--shadow-elevation); max-width: 950px; width: 95%;
+            text-align: center; display: none; border: 4px solid var(--deep-ocean); position: relative;
+            transition: max-width 0.2s;
+        }
+        .screen::after {
+            content: ""; position: absolute; top: 5px; left: 5px; right: 5px; bottom: 5px;
+            border: 2px dashed var(--steel-grey); border-radius: 10px; pointer-events: none;
+        }
+        .active-screen { display: block; animation: zoomIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes zoomIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .screen-xl { max-width: 1350px !important; }
+
+        /* --- BOUTONS --- */
+        .btn {
+            background: linear-gradient(180deg, #3498db 0%, #2980b9 100%); color: white; border: none;
+            padding: 15px 30px; margin: 10px; border-radius: 5px; font-size: 1.1em; font-weight: bold;
+            text-transform: uppercase; cursor: pointer; box-shadow: 0 5px 0 #1a5276; transition: transform 0.1s; position: relative; z-index: 2;
+        }
+        .btn:active { transform: translateY(4px); box-shadow: 0 1px 0 #1a5276; }
+        .btn-gold { background: linear-gradient(180deg, #f1c40f 0%, #d35400 100%); box-shadow: 0 5px 0 #a04000; }
+        .btn-gold:active { transform: translateY(4px); box-shadow: 0 1px 0 #a04000; }
+        .btn-dark { background: linear-gradient(180deg, #34495e 0%, #050d14 100%); box-shadow: 0 5px 0 #000; }
+        .btn-dark:active { transform: translateY(4px); box-shadow: 0 1px 0 #000; }
+        .btn-green { background: linear-gradient(180deg, #2ecc71 0%, #1e8449 100%); box-shadow: 0 5px 0 #145a32; }
+        .btn-green:active { transform: translateY(4px); box-shadow: 0 1px 0 #145a32; }
+        .btn-locked { background: linear-gradient(180deg, #95a5a6 0%, #7f8c8d 100%); box-shadow: 0 5px 0 #616a6b; cursor: not-allowed; opacity: 0.85; }
+        .btn-locked:active { transform: none; box-shadow: 0 5px 0 #616a6b; }
+
+        .option-desc { font-size:0.9em; margin-bottom:15px; color:#555; }
+
+        /* --- GRILLES --- */
+        .game-area { display: flex; flex-wrap: wrap; justify-content: center; gap: 40px; margin-top: 20px; }
+        .grid-wrapper { background: #2c3e50; padding: 10px; border-radius: 8px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+        .grid-title { color: white; margin-bottom: 10px; font-weight: bold; letter-spacing: 1px; }
+        .grid { display: grid; background: #000; gap: 2px; border: 2px solid #555; }
+        .cell {
+            background: radial-gradient(circle, #3498db, #154360); display: flex; justify-content: center; align-items: center;
+            cursor: crosshair; position: relative; overflow: hidden;
+        }
+        .grid-small .cell { cursor: default; }
+        .cell.ship { background: repeating-linear-gradient(45deg, #5d6d7e, #5d6d7e 10px, #34495e 10px, #34495e 20px); border: 1px solid #888; }
+        .cell.hit { background: #c0392b; animation: shake 0.5s; }
+        .cell.hit::after { content: "💥"; font-size: 0.8em; }
+        .cell.miss { background: #aed6f1; opacity: 0.6; }
+        .cell.miss::after { content: "💧"; font-size: 0.8em; }
+        .cell.sunk { background: #000; border: 2px solid red; }
+        .cell.sunk::after { content: "💀"; font-size: 0.8em; color: white; }
+        @keyframes shake { 0% { transform: translate(1px, 1px); } 50% { transform: translate(-1px, -1px); } 100% { transform: translate(0, 0); } }
+
+        /* --- MODAL --- */
+        .overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85);
+            display: none; justify-content: center; align-items: center; z-index: 100; backdrop-filter: blur(8px);
+        }
+        .modal-box {
+            background: white; padding: 40px; border-radius: 12px; max-width: 800px; width: 90%;
+            text-align: center; border: 4px solid var(--gold-accent); box-shadow: 0 0 50px rgba(212, 175, 55, 0.2);
+            max-height: 90vh; overflow-y: auto; transition: max-width 0.2s;
+        }
+        .modal-box.wide { max-width: 1150px; }
+        .sentence { font-size: 1.5em; padding: 25px; background: #ecf0f1; border-left: 5px solid var(--gold-accent); margin: 25px 0; font-family: 'Georgia', serif; color: #2c3e50; }
+        .highlight { color: #d35400; font-weight: bold; border-bottom: 2px solid #d35400; }
+        .options-container { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .opt-btn { padding: 15px; border: 2px solid #bdc3c7; background: white; font-size: 1.1em; cursor: pointer; border-radius: 8px; transition: 0.2s; }
+        .opt-btn:hover { border-color: var(--gold-accent); background: #fcf3cf; transform: scale(1.02); }
+
+        /* --- LISTE COMPLÈTE DES FONCTIONS (Niveau Stratège) --- */
+        .full-options { display: flex; gap: 20px; text-align: left; margin-top: 15px; flex-wrap: wrap; justify-content: center; }
+        .func-category { flex: 1; min-width: 230px; background: #f8f9f9; border-radius: 10px; padding: 12px; }
+        .func-category h4 { color: var(--deep-ocean); border-bottom: 2px solid var(--gold-accent); padding-bottom: 6px; margin: 0 0 8px 0; font-size: 0.95em; text-transform: uppercase; letter-spacing: 0.5px; }
+        .func-btn { display: block; width: 100%; text-align: left; padding: 8px 10px; margin: 4px 0; border: 1px solid #bdc3c7; background: white; border-radius: 6px; cursor: pointer; font-size: 0.9em; transition: 0.15s; }
+        .func-btn:hover { background: #fcf3cf; border-color: var(--gold-accent); transform: translateX(3px); }
+
+        /* --- ÉCRANS DE CHOIX (mode / difficulté / distant) --- */
+        .mode-card { display: inline-block; width: 280px; vertical-align: top; margin: 10px; padding: 20px; border-radius: 10px; background: #f8f9f9; border: 2px solid #ddd; }
+        .mode-card p { font-size: 0.9em; color: #555; min-height: 60px; }
+        #join-code-input { font-size: 2em; text-align: center; width: 140px; letter-spacing: 8px; padding: 8px; border-radius: 8px; border: 2px solid #bdc3c7; }
+
+        /* FEEDBACK */
+        #feedback-overlay { display: none; flex-direction: column; z-index: 200; background: rgba(0,0,0,0.95); color: white; }
+        .feedback-icon { width: 120px; height: 120px; margin-bottom: 20px; }
+        .explosion-svg { animation: expand 0.5s ease-out; fill: #e74c3c; }
+        @keyframes expand { 0% { transform: scale(0); opacity: 0; } 50% { transform: scale(1.2); } 100% { transform: scale(1); opacity: 1; } }
+        .skull-svg { animation: drop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); fill: #ecf0f1; }
+        @keyframes drop { from { transform: translateY(-500px); } to { transform: translateY(0); } }
+        .feedback-title { font-size: 3em; margin: 0; text-transform: uppercase; font-weight: 900; }
+        .feedback-text { font-size: 1.5em; color: var(--gold-accent); margin: 10px 0; }
+        .feedback-expl { font-size: 1.3em; max-width: 700px; margin: 20px auto; padding: 20px; background: rgba(255,255,255,0.1); border-radius: 10px; font-style: italic; line-height: 1.6; }
+        #confetti-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 300; display: none; }
+
+        @keyframes flashTurn { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        .active-turn { animation: flashTurn 2s infinite; }
+    </style>
+</head>
+<body>
+
+    <div id="test-toggle-fixed" style="position:fixed; top:8px; left:8px; z-index:500;">
+        <a href="#" onclick="toggleTestMode(); return false;" id="test-mode-toggle" style="color:#7a8b99; font-size:0.75em; text-decoration:underline; background:rgba(255,255,255,0.9); padding:4px 8px; border-radius:6px; display:inline-block;">🛠 Mode test</a>
+    </div>
+
+    <div class="logo-area">
+        <svg class="main-icon" viewBox="0 0 24 24"><path d="M12,2A2,2 0 0,1 14,4C14,4.55 13.78,5.06 13.41,5.41L15,7L13.59,8.41L12.41,7.24C12.92,7.74 13.19,8.5 13,9.3V17A2,2 0 0,1 15,19A2,2 0 0,1 13,21A2,2 0 0,1 11,19A2,2 0 0,1 13,17V9.3C12.86,9.3 12.73,9.31 12.59,9.34L11,2H12M4,17A2,2 0 0,1 6,19A2,2 0 0,1 4,21A2,2 0 0,1 2,19A2,2 0 0,1 4,17M20,17A2,2 0 0,1 22,19A2,2 0 0,1 20,21A2,2 0 0,1 18,19A2,2 0 0,1 20,17Z" /></svg>
+        <h1>Amiral Grammaire</h1>
+    </div>
+
+    <div id="rules-screen" class="screen active-screen">
+        <h2>Mission : Protection de la Flotte</h2>
+        <p>Amiral ! Votre savoir est votre seul bouclier.</p>
+        <ul style="text-align: left; margin: 20px auto; max-width: 600px; line-height: 1.8;">
+            <li>🎯 <strong>Analysez</strong> la fonction du mot souligné.</li>
+            <li>🛡️ <strong>Immunité :</strong> Si vous répondez juste, <strong>l'ennemi ne tire PAS</strong> (même si vous manquez la cible) et vous rejouez.</li>
+            <li>💥 <strong>Touché :</strong> Si vous touchez un navire ET répondez juste, vous rejouez.</li>
+            <li>❌ <strong>Erreur :</strong> Une mauvaise réponse permet à l'ennemi de contre-attaquer !</li>
+        </ul>
+        <button class="btn btn-gold" onclick="showLevelScreen()">Prendre le commandement</button>
+    </div>
+
+    <div id="level-screen" class="screen">
+        <h2>Choisissez votre affectation</h2>
+        <button class="btn" onclick="initGame(1)">🟢 Matelot (Grille 6x6)</button>
+        <div class="option-desc">Sujet, COD, COI, Attribut du sujet, CC simples, C. du nom</div>
+
+        <button class="btn" onclick="initGame(2)">🔵 Lieutenant (Grille 8x8)</button>
+        <div class="option-desc">+ Épithète, C. Essentiels, CC But/Cause/Conséquence, C. Agent</div>
+
+        <button class="btn" onclick="initGame(3)">🔴 Amiral (Grille 10x10)</button>
+        <div class="option-desc">+ Attribut COD, CC Condition, Épithète dét., C. Antécédent/Adj/Adv/Pron...</div>
+
+        <button class="btn btn-locked" id="level4-btn">🔒 Stratège Suprême (verrouillé)</button>
+        <div class="option-desc" id="level4-desc"></div>
+    </div>
+
+    <div id="mode-screen" class="screen">
+        <h2>⚫ Stratège Suprême — Choisissez votre adversaire</h2>
+        <div class="mode-card">
+            <h3>🤖 Duel contre l'IA</h3>
+            <p>Affrontez l'ordinateur. Choisissez son niveau de difficulté avant la bataille.</p>
+            <button class="btn" onclick="showDifficultyScreen()">Défier l'IA</button>
+        </div>
+        <div class="mode-card">
+            <h3>🌐 Duel à distance</h3>
+            <p>Affrontez un camarade sur un autre ordinateur grâce à un code à 4 chiffres que vous choisissez ensemble.</p>
+            <button class="btn btn-green" onclick="selectRemote()">Défier à distance</button>
+        </div>
+    </div>
+
+    <div id="difficulty-screen" class="screen">
+        <h2>Niveau de l'IA</h2>
+        <p>Plus la difficulté est élevée, moins l'IA se trompe.</p>
+        <button class="btn" onclick="setDifficultyAndProceed(0.6)">😊 Facile <br><small>(l'IA échoue ~60% du temps)</small></button>
+        <button class="btn" onclick="setDifficultyAndProceed(0.35)">😐 Normal <br><small>(l'IA échoue ~35% du temps)</small></button>
+        <button class="btn btn-dark" onclick="setDifficultyAndProceed(0.15)">😈 Difficile <br><small>(l'IA échoue ~15% du temps)</small></button>
+    </div>
+
+    <div id="remote-screen" class="screen">
+        <h2>🌐 Duel à distance</h2>
+        <div class="mode-card">
+            <h3>🆕 Créer une partie</h3>
+            <p>Un code à 4 chiffres sera généré. Donnez-le à votre camarade (à l'oral, sur un post-it...).</p>
+            <button class="btn btn-gold" onclick="createRemoteRoom()">Créer</button>
+        </div>
+        <div class="mode-card">
+            <h3>🔑 Rejoindre une partie</h3>
+            <p>Entrez le code à 4 chiffres donné par votre camarade.</p>
+            <input id="join-code-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="0000">
+            <br>
+            <button class="btn btn-green" onclick="joinRemoteRoom()">Rejoindre</button>
+        </div>
+        <p id="remote-status" style="margin-top:20px; font-weight:bold; color:var(--deep-ocean); font-size:1.1em;"></p>
+    </div>
+
+    <div id="placement-screen" class="screen">
+        <h2>Déploiement de la Flotte <span id="placement-player-label" style="color:var(--gold-accent)"></span></h2>
+        <p id="placement-instruction">Placez vos navires.</p>
+        <div class="game-area">
+            <div class="grid-wrapper"><div id="placement-grid" class="grid"></div></div>
+        </div>
+        <div style="margin-top:20px;">
+            <button class="btn" onclick="toggleOrientation()">Pivoter le navire</button>
+            <button class="btn btn-dark" id="auto-place-btn" style="display:none;" onclick="autoPlaceRemaining()">🛠 [TEST] Placement auto</button>
+        </div>
+    </div>
+
+    <div id="game-screen" class="screen">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #ddd; padding-bottom:10px;">
+            <span style="font-weight:bold; color:var(--deep-ocean)">📡 Radar Actif</span>
+            <span id="turn-indicator" style="font-weight:bold; color:var(--hit-color)" class="active-turn">À VOS ORDRES !</span>
+            <button id="test-win-btn" style="display:none; background:#e67e22; color:white; border:none; padding:6px 12px; border-radius:5px; font-size:0.75em; cursor:pointer;" onclick="testInstantWin()">🏆 [TEST] Gagner</button>
+        </div>
+        <div class="game-area">
+            <div class="grid-wrapper"><div class="grid-title">ZONE ENNEMIE (CIBLE)</div><div id="enemy-grid" class="grid"></div></div>
+            <div class="grid-wrapper"><div class="grid-title">VOTRE FLOTTE</div><div id="player-grid" class="grid"></div></div>
+        </div>
+    </div>
+
+    <div id="question-modal" class="overlay">
+        <div class="modal-box">
+            <h3 style="color:var(--deep-ocean)">🔍 ANALYSE TACTIQUE</h3>
+            <p>Identifiez la fonction du mot ou groupe souligné :</p>
+            <div id="q-sentence" class="sentence"></div>
+            <div id="q-options" class="options-container"></div>
+        </div>
+    </div>
+
+    <div id="feedback-overlay" class="overlay">
+        <div id="fb-icon-container"></div>
+        <h1 id="fb-title" class="feedback-title"></h1>
+        <div id="fb-subtitle" class="feedback-text"></div>
+        <div id="fb-expl" class="feedback-expl"></div>
+        <button class="btn btn-gold" onclick="closeFeedback()">CONTINUER</button>
+    </div>
+
+    <canvas id="confetti-canvas"></canvas>
+
+    <!-- SDK Firebase (compat), utilisé uniquement pour le duel à distance -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+<script>
+/* ================= BASE DE DONNÉES MASSIVE ================= */
+const database = [
+    // ================= NIVEAU 1 : MATELOT =================
+    { lvl: 1, sentence: "Le [chat] dort sur le canapé.", func: "Sujet", expl: "C'est 'le chat' qui fait l'action." },
+    { lvl: 1, sentence: "[Nous] partons en vacances.", func: "Sujet", expl: "C'est 'nous' qui faisons l'action." },
+    { lvl: 1, sentence: "Au loin, volent les [oiseaux].", func: "Sujet", expl: "Sujet inversé : ce sont les oiseaux qui volent." },
+    { lvl: 1, sentence: "Qui a mangé [la pomme] ?", func: "COD", expl: "Piège ! 'La pomme' est COD. Le sujet est 'Qui'." },
+    { lvl: 1, sentence: "[Léo et moi] sommes amis.", func: "Sujet", expl: "Groupe nominal sujet de 'sommes'." },
+    { lvl: 1, sentence: "Soudain surgit [un loup].", func: "Sujet", expl: "Sujet inversé après le verbe 'surgir'." },
+    { lvl: 1, sentence: "[Manger] est son activité préférée.", func: "Sujet", expl: "Un verbe à l'infinitif peut être sujet." },
+    { lvl: 1, sentence: "[Tout] est possible.", func: "Sujet", expl: "Pronom indéfini sujet." },
+
+    { lvl: 1, sentence: "J'aime [les bonbons].", func: "COD", expl: "J'aime QUOI ? -> Les bonbons." },
+    { lvl: 1, sentence: "Il regarde [la télévision].", func: "COD", expl: "Il regarde QUOI ? -> La télévision." },
+    { lvl: 1, sentence: "Nous avons fini [nos devoirs].", func: "COD", expl: "Nous avons fini QUOI ? -> Nos devoirs." },
+    { lvl: 1, sentence: "Tu manges [une pomme].", func: "COD", expl: "Tu manges QUOI ? -> Une pomme." },
+    { lvl: 1, sentence: "Je [les] vois.", func: "COD", expl: "Je vois QUI ? -> 'les' (les gens)." },
+    { lvl: 1, sentence: "Qui a volé [l'orange] ?", func: "COD", expl: "A volé QUOI ? -> L'orange." },
+    { lvl: 1, sentence: "Elle écoute [la radio].", func: "COD", expl: "Elle écoute QUOI ? -> La radio." },
+    { lvl: 1, sentence: "Le chat attrape [une souris].", func: "COD", expl: "Attrape QUOI ? -> Une souris." },
+
+    { lvl: 1, sentence: "Je téléphone [à ma mère].", func: "COI", expl: "Je téléphone À QUI ? -> À ma mère." },
+    { lvl: 1, sentence: "Il parle [de son voyage].", func: "COI", expl: "Il parle DE QUOI ? -> De son voyage." },
+    { lvl: 1, sentence: "Tu penses [à l'été].", func: "COI", expl: "Tu penses À QUOI ? -> À l'été." },
+    { lvl: 1, sentence: "Nous obéissons [au capitaine].", func: "COI", expl: "Obéir À QUI ? -> Au capitaine." },
+    { lvl: 1, sentence: "Je [lui] souris.", func: "COI", expl: "Je souris À QUI ? -> À lui (lui)." },
+    { lvl: 1, sentence: "Il se moque [de tout].", func: "COI", expl: "Se moquer DE QUOI ?" },
+    { lvl: 1, sentence: "Elle ressemble [à sa sœur].", func: "COI", expl: "Ressembler À QUI ?" },
+    { lvl: 1, sentence: "J'ai écrit [au directeur].", func: "COI", expl: "Écrit À QUI ?" },
+
+    { lvl: 1, sentence: "La mer est [calme].", func: "Attribut du Sujet", expl: "Qualifie le sujet via le verbe être." },
+    { lvl: 1, sentence: "Il semble [fatigué].", func: "Attribut du Sujet", expl: "Relié au sujet par un verbe d'état (sembler)." },
+    { lvl: 1, sentence: "Elle deviendra [médecin].", func: "Attribut du Sujet", expl: "Relié par le verbe devenir." },
+    { lvl: 1, sentence: "Ce chien a l'air [méchant].", func: "Attribut du Sujet", expl: "Relié par 'avoir l'air' (locution d'état)." },
+    { lvl: 1, sentence: "Mon frère reste [silencieux].", func: "Attribut du Sujet", expl: "Relié par le verbe rester." },
+    { lvl: 1, sentence: "Ces fleurs paraissent [fanées].", func: "Attribut du Sujet", expl: "Relié par le verbe paraître." },
+    { lvl: 1, sentence: "Il passe pour [un héros].", func: "Attribut du Sujet", expl: "Relié par 'passer pour'." },
+    { lvl: 1, sentence: "Le ciel demeure [gris].", func: "Attribut du Sujet", expl: "Relié par le verbe demeurer." },
+
+    { lvl: 1, sentence: "Il arrivera [demain].", func: "CC Temps", expl: "Répond à la question : Quand ?" },
+    { lvl: 1, sentence: "[Hier], j'ai vu un film.", func: "CC Temps", expl: "Indique le moment de l'action." },
+    { lvl: 1, sentence: "Nous partirons [à midi].", func: "CC Temps", expl: "Précise l'heure de l'action." },
+    { lvl: 1, sentence: "Il pleut [souvent].", func: "CC Temps", expl: "Indique la fréquence (temps)." },
+    { lvl: 1, sentence: "[Soudain], l'orage éclata.", func: "CC Temps", expl: "Indique un moment précis." },
+    { lvl: 1, sentence: "Je dors [la nuit].", func: "CC Temps", expl: "Indique la période." },
+    { lvl: 1, sentence: "Il a neigé [pendant deux jours].", func: "CC Temps", expl: "Indique la durée." },
+    { lvl: 1, sentence: "[Bientôt], nous serons là.", func: "CC Temps", expl: "Indique le futur proche." },
+
+    { lvl: 1, sentence: "Le chat dort [sur le lit].", func: "CC Lieu", expl: "Répond à la question : Où ?" },
+    { lvl: 1, sentence: "Nous allons [au parc].", func: "CC Lieu", expl: "Indique la destination." },
+    { lvl: 1, sentence: "Il vit [dans une grotte].", func: "CC Lieu", expl: "Indique l'endroit." },
+    { lvl: 1, sentence: "[Ici], tout est calme.", func: "CC Lieu", expl: "Adverbe de lieu." },
+    { lvl: 1, sentence: "Je l'ai vu [là-bas].", func: "CC Lieu", expl: "Adverbe de lieu." },
+    { lvl: 1, sentence: "Les oiseaux volent [dans le ciel].", func: "CC Lieu", expl: "Indique l'espace." },
+    { lvl: 1, sentence: "Il a caché le trésor [sous l'arbre].", func: "CC Lieu", expl: "Indique la position." },
+    { lvl: 1, sentence: "Pose ça [partout].", func: "CC Lieu", expl: "Indique un lieu indéfini." },
+
+    { lvl: 1, sentence: "Il court [vite].", func: "CC Manière", expl: "Répond à la question : Comment ?" },
+    { lvl: 1, sentence: "Elle parle [doucement].", func: "CC Manière", expl: "Indique la façon de parler." },
+    { lvl: 1, sentence: "Il travaille [avec sérieux].", func: "CC Manière", expl: "Indique la manière de travailler." },
+    { lvl: 1, sentence: "Le soldat se bat [courageusement].", func: "CC Manière", expl: "Adverbe de manière." },
+    { lvl: 1, sentence: "Il a répondu [méchamment].", func: "CC Manière", expl: "Adverbe de manière." },
+    { lvl: 1, sentence: "Elle marche [à pas de loup].", func: "CC Manière", expl: "Locution adverbiale de manière." },
+    { lvl: 1, sentence: "Il me regarde [bizarrement].", func: "CC Manière", expl: "Comment il me regarde ?" },
+    { lvl: 1, sentence: "Nous chantons [en chœur].", func: "CC Manière", expl: "Façon de chanter." },
+
+    { lvl: 1, sentence: "J'écris [avec un stylo].", func: "CC Moyen", expl: "Indique l'outil utilisé." },
+    { lvl: 1, sentence: "Il voyage [en train].", func: "CC Moyen", expl: "Indique le moyen de transport." },
+    { lvl: 1, sentence: "Il a coupé le pain [avec un couteau].", func: "CC Moyen", expl: "Outil : le couteau." },
+    { lvl: 1, sentence: "Nous communiquons [par email].", func: "CC Moyen", expl: "Moyen de communication." },
+    { lvl: 1, sentence: "Il se déplace [à vélo].", func: "CC Moyen", expl: "Moyen de transport." },
+    { lvl: 1, sentence: "Elle peint [à l'huile].", func: "CC Moyen", expl: "Matière/Moyen utilisé." },
+    { lvl: 1, sentence: "Il a réussi [à la force du poignet].", func: "CC Moyen", expl: "Moyen métaphorique." },
+    { lvl: 1, sentence: "Je vois [avec mes lunettes].", func: "CC Moyen", expl: "Instrument utilisé." },
+
+    { lvl: 1, sentence: "Le chien [de ma voisine] aboie.", func: "Complément du Nom", expl: "Complète le nom 'chien'." },
+    { lvl: 1, sentence: "Une tarte [aux pommes].", func: "Complément du Nom", expl: "Complète le nom 'tarte'." },
+    { lvl: 1, sentence: "J'ai un blouson [en cuir].", func: "Complément du Nom", expl: "Complète 'blouson' (matière)." },
+    { lvl: 1, sentence: "La ville [de Paris] est belle.", func: "Complément du Nom", expl: "Complète le nom 'ville'." },
+    { lvl: 1, sentence: "Un verre [à pied].", func: "Complément du Nom", expl: "Caractérise le verre." },
+    { lvl: 1, sentence: "La machine [à laver] est en panne.", func: "Complément du Nom", expl: "Complète 'machine'." },
+    { lvl: 1, sentence: "Le roi [des animaux] est le lion.", func: "Complément du Nom", expl: "Complète 'roi'." },
+    { lvl: 1, sentence: "Une table [en bois] massif.", func: "Complément du Nom", expl: "Complète 'table'." },
+
+    // ================= NIVEAU 2 : LIEUTENANT =================
+    { lvl: 2, sentence: "Le [petit] chat dort.", func: "Epithète Liée", expl: "Adjectif collé au nom 'chat'." },
+    { lvl: 2, sentence: "Une [grande] maison.", func: "Epithète Liée", expl: "Adjectif collé au nom 'maison'." },
+    { lvl: 2, sentence: "J'aime le chocolat [noir].", func: "Epithète Liée", expl: "Adjectif collé au nom 'chocolat'." },
+    { lvl: 2, sentence: "Des élèves [serieux] réussissent.", func: "Epithète Liée", expl: "Qualifie 'élèves' directement." },
+    { lvl: 2, sentence: "Un [vieux] livre poussiéreux.", func: "Epithète Liée", expl: "Collé au nom 'livre'." },
+    { lvl: 2, sentence: "Le ciel [bleu] est magnifique.", func: "Epithète Liée", expl: "Collé au nom 'ciel'." },
+    { lvl: 2, sentence: "Une histoire [drôle].", func: "Epithète Liée", expl: "Collé au nom 'histoire'." },
+    { lvl: 2, sentence: "Ce [courageux] soldat a gagné.", func: "Epithète Liée", expl: "Collé au nom 'soldat'." },
+
+    { lvl: 2, sentence: "Je vais [à l'école].", func: "C. Essentiel de Lieu", expl: "Essentiel au verbe 'aller'." },
+    { lvl: 2, sentence: "Il habite [à Lyon].", func: "C. Essentiel de Lieu", expl: "Essentiel au verbe 'habiter'." },
+    { lvl: 2, sentence: "Nous nous rendons [chez lui].", func: "C. Essentiel de Lieu", expl: "Essentiel au verbe 'se rendre'." },
+    { lvl: 2, sentence: "La réunion a lieu [ici].", func: "C. Essentiel de Lieu", expl: "Essentiel à l'expression 'avoir lieu'." },
+    { lvl: 2, sentence: "Je réside [en France].", func: "C. Essentiel de Lieu", expl: "Essentiel à 'résider'." },
+    { lvl: 2, sentence: "Tu vas [où] ?", func: "C. Essentiel de Lieu", expl: "Interrogatif essentiel." },
+    { lvl: 2, sentence: "Il demeure [rue de la Paix].", func: "C. Essentiel de Lieu", expl: "Sens locatif de demeurer." },
+    { lvl: 2, sentence: "L'accident est survenu [sur la route].", func: "C. Essentiel de Lieu", expl: "Le verbe survenir appelle un lieu." },
+
+    { lvl: 2, sentence: "Le film dure [deux heures].", func: "C. Essentiel de Temps", expl: "Indique la mesure du temps pour 'durer'." },
+    { lvl: 2, sentence: "La fête a duré [toute la nuit].", func: "C. Essentiel de Temps", expl: "Mesure du temps." },
+    { lvl: 2, sentence: "Cela a pris [cinq minutes].", func: "C. Essentiel de Temps", expl: "Essentiel à 'prendre du temps'." },
+    { lvl: 2, sentence: "Il a attendu [une heure].", func: "C. Essentiel de Temps", expl: "Mesure de l'attente." },
+    { lvl: 2, sentence: "Le cours commence [à 8h].", func: "C. Essentiel de Temps", expl: "Horaire essentiel." },
+    { lvl: 2, sentence: "Le magasin ferme [à 19h].", func: "C. Essentiel de Temps", expl: "Horaire essentiel." },
+    { lvl: 2, sentence: "La guerre a duré [cent ans].", func: "C. Essentiel de Temps", expl: "Mesure de durée." },
+    { lvl: 2, sentence: "Ça coûte [cinq minutes] de ton temps.", func: "C. Essentiel de Temps", expl: "Mesure." },
+
+    { lvl: 2, sentence: "Il travaille [pour gagner sa vie].", func: "CC But", expl: "Dans quel but ?" },
+    { lvl: 2, sentence: "Je viens [pour te voir].", func: "CC But", expl: "L'objectif de la venue." },
+    { lvl: 2, sentence: "Il s'entraîne [afin de gagner].", func: "CC But", expl: "L'objectif de l'entraînement." },
+    { lvl: 2, sentence: "J'ai acheté ça [pour toi].", func: "CC But", expl: "Le destinataire (bénéficiaire)." },
+    { lvl: 2, sentence: "Elle révise [en vue de l'examen].", func: "CC But", expl: "Objectif visé." },
+    { lvl: 2, sentence: "Il court [pour ne pas être en retard].", func: "CC But", expl: "Objectif (éviter le retard)." },
+    { lvl: 2, sentence: "Voici un cadeau [pour ton anniversaire].", func: "CC But", expl: "Destination du cadeau." },
+    { lvl: 2, sentence: "Il épargne [pour s'acheter une voiture].", func: "CC But", expl: "Projet." },
+
+    { lvl: 2, sentence: "Il ne sort pas [à cause de la pluie].", func: "CC Cause", expl: "La raison (négative)." },
+    { lvl: 2, sentence: "Il a réussi [grâce à son travail].", func: "CC Cause", expl: "La raison (positive)." },
+    { lvl: 2, sentence: "Comme [il pleut], je reste.", func: "CC Cause", expl: "La proposition indique la cause." },
+    { lvl: 2, sentence: "Il pleure [parce qu'il est triste].", func: "CC Cause", expl: "Explication du pourquoi." },
+    { lvl: 2, sentence: "[Faute de temps], j'ai abandonné.", func: "CC Cause", expl: "Manque de temps = cause." },
+    { lvl: 2, sentence: "Il a été puni [pour avoir menti].", func: "CC Cause", expl: "La raison de la punition." },
+    { lvl: 2, sentence: "[Puisque tu es là], aidons-nous.", func: "CC Cause", expl: "Cause évidente." },
+    { lvl: 2, sentence: "Il tremble [de froid].", func: "CC Cause", expl: "Le froid est la cause du tremblement." },
+
+    { lvl: 2, sentence: "Il a plu, [si bien que c'est mouillé].", func: "CC Conséquence", expl: "Le résultat de la pluie." },
+    { lvl: 2, sentence: "Il est si grand [qu'il touche le plafond].", func: "CC Conséquence", expl: "Résultat de sa taille." },
+    { lvl: 2, sentence: "Il a tant crié [qu'il n'a plus de voix].", func: "CC Conséquence", expl: "Résultat du cri." },
+    { lvl: 2, sentence: "Il court vite, [au point de tomber].", func: "CC Conséquence", expl: "Résultat de la course." },
+    { lvl: 2, sentence: "Il est trop tard [pour reculer].", func: "CC Conséquence", expl: "Conséquence du temps." },
+    { lvl: 2, sentence: "L'arbre est tombé, [bloquant la route].", func: "CC Conséquence", expl: "Résultat de la chute." },
+    { lvl: 2, sentence: "Il a menti, [de sorte que personne ne le croit].", func: "CC Conséquence", expl: "Résultat du mensonge." },
+    { lvl: 2, sentence: "La rivière a débordé, [inondant les champs].", func: "CC Conséquence", expl: "Résultat." },
+
+    { lvl: 2, sentence: "Je sors [avec mes amis].", func: "CC Accompagnement", expl: "Avec qui ?" },
+    { lvl: 2, sentence: "Il est venu [sans son chien].", func: "CC Accompagnement", expl: "Accompagnement (négatif)." },
+    { lvl: 2, sentence: "Nous dinons [avec nos parents].", func: "CC Accompagnement", expl: "Avec qui ?" },
+    { lvl: 2, sentence: "Il se promène [avec sa sœur].", func: "CC Accompagnement", expl: "Avec qui ?" },
+    { lvl: 2, sentence: "Elle travaille [en compagnie de Paul].", func: "CC Accompagnement", expl: "Avec qui ?" },
+    { lvl: 2, sentence: "Partez [avec eux] !", func: "CC Accompagnement", expl: "Avec qui ?" },
+    { lvl: 2, sentence: "Tu joues [avec qui] ?", func: "CC Accompagnement", expl: "Question sur l'accompagnement." },
+    { lvl: 2, sentence: "Le pain se mange [avec du fromage].", func: "CC Accompagnement", expl: "Accompagnement culinaire." },
+
+    { lvl: 2, sentence: "La souris est mangée [par le chat].", func: "Complément d'Agent", expl: "Phrase passive : c'est le chat qui mange." },
+    { lvl: 2, sentence: "Le voleur a été arrêté [par la police].", func: "Complément d'Agent", expl: "Phrase passive : la police arrête." },
+    { lvl: 2, sentence: "Ce livre a été écrit [par Hugo].", func: "Complément d'Agent", expl: "L'auteur de l'action passive." },
+    { lvl: 2, sentence: "Il est aimé [de tous].", func: "Complément d'Agent", expl: "Agent introduit par 'de'." },
+    { lvl: 2, sentence: "L'arbre a été abattu [par le vent].", func: "Complément d'Agent", expl: "La cause agissante." },
+    { lvl: 2, sentence: "La ville fut détruite [par le feu].", func: "Complément d'Agent", expl: "L'agent destructeur." },
+    { lvl: 2, sentence: "Le gâteau sera mangé [par les enfants].", func: "Complément d'Agent", expl: "Ceux qui mangeront." },
+    { lvl: 2, sentence: "La leçon est apprise [par l'élève].", func: "Complément d'Agent", expl: "Celui qui apprend." },
+
+    // ================= NIVEAU 3 : AMIRAL =================
+    { lvl: 3, sentence: "[Si tu viens], je serai content.", func: "CC Condition", expl: "Hypothèse." },
+    { lvl: 3, sentence: "Je partirai [à condition qu'il fasse beau].", func: "CC Condition", expl: "Condition requise." },
+    { lvl: 3, sentence: "[En cas d'urgence], appelez le 15.", func: "CC Condition", expl: "Circonstance conditionnelle." },
+    { lvl: 3, sentence: "[Sans ton aide], j'aurais échoué.", func: "CC Condition", expl: "Si tu ne m'avais pas aidé..." },
+    { lvl: 3, sentence: "Je te le dirai [si tu promets de te taire].", func: "CC Condition", expl: "Condition." },
+    { lvl: 3, sentence: "[Avec un peu d'effort], tu réussiras.", func: "CC Condition", expl: "Si tu fais un effort..." },
+    { lvl: 3, sentence: "[Au cas où il pleuvrait], prends un parapluie.", func: "CC Condition", expl: "Hypothèse." },
+    { lvl: 3, sentence: "Nous irons [sauf s'il neige].", func: "CC Condition", expl: "Condition négative." },
+
+    { lvl: 3, sentence: "Je trouve ce film [intéressant].", func: "Attribut du COD", expl: "'Intéressant' qualifie 'ce film' (COD)." },
+    { lvl: 3, sentence: "Ils ont élu Paul [délégué].", func: "Attribut du COD", expl: "'Délégué' est la qualité donnée à 'Paul' (COD)." },
+    { lvl: 3, sentence: "Il a rendu sa mère [heureuse].", func: "Attribut du COD", expl: "L'état de 'sa mère' (COD) change." },
+    { lvl: 3, sentence: "On le considère [comme un génie].", func: "Attribut du COD", expl: "Qualité attribuée au pronom 'le' (COD)." },
+    { lvl: 3, sentence: "Tu appelles ça [de l'art] ?", func: "Attribut du COD", expl: "'De l'art' qualifie 'ça' (COD)." },
+    { lvl: 3, sentence: "Le juge a déclaré l'accusé [coupable].", func: "Attribut du COD", expl: "Qualité juridique de l'accusé." },
+    { lvl: 3, sentence: "Elle a les yeux [bleus].", func: "Attribut du COD", expl: "Adjectif attributif du nom 'yeux' (COD)." },
+    { lvl: 3, sentence: "Je la croyais [partie].", func: "Attribut du COD", expl: "Etat supposé du pronom 'la'." },
+
+    { lvl: 3, sentence: "L'homme, [furieux], cria.", func: "Epithète Détachée", expl: "Adjectif séparé par des virgules." },
+    { lvl: 3, sentence: "[Heureux], le chien court.", func: "Epithète Détachée", expl: "Adjectif en tête de phrase." },
+    { lvl: 3, sentence: "La ville, [désormais calme], s'endort.", func: "Epithète Détachée", expl: "Groupe adjectival détaché." },
+    { lvl: 3, sentence: "Les élèves, [attentifs], écoutent.", func: "Epithète Détachée", expl: "Adjectif entre virgules." },
+    { lvl: 3, sentence: "[Surpris], il sursauta.", func: "Epithète Détachée", expl: "Participe passé employé comme adjectif détaché." },
+    { lvl: 3, sentence: "La mer, [agitée], effraie les marins.", func: "Epithète Détachée", expl: "Détachée du nom 'mer'." },
+    { lvl: 3, sentence: "Ces fleurs, [rouges et belles], parfument l'air.", func: "Epithète Détachée", expl: "Groupe détaché." },
+    { lvl: 3, sentence: "[Malade], il est resté au lit.", func: "Epithète Détachée", expl: "Adjectif en début de phrase." },
+
+    { lvl: 3, sentence: "Il habite loin [de la ville].", func: "Complément de l'Adverbe", expl: "Complète l'adverbe 'loin'." },
+    { lvl: 3, sentence: "Il a agi conformément [à la loi].", func: "Complément de l'Adverbe", expl: "Complète 'conformément'." },
+    { lvl: 3, sentence: "C'est beaucoup [de bruit].", func: "Complément de l'Adverbe", expl: "Complète l'adverbe de quantité 'beaucoup'." },
+    { lvl: 3, sentence: "Il a peu [d'amis].", func: "Complément de l'Adverbe", expl: "Complète 'peu'." },
+    { lvl: 3, sentence: "Heureusement [pour toi], je suis là.", func: "Complément de l'Adverbe", expl: "Complète 'heureusement'." },
+    { lvl: 3, sentence: "Indépendamment [de sa volonté], il a dormi.", func: "Complément de l'Adverbe", expl: "Complète 'indépendamment'." },
+    { lvl: 3, sentence: "Contrairement [à ses habitudes], il est là.", func: "Complément de l'Adverbe", expl: "Complète 'contrairement'." },
+    { lvl: 3, sentence: "Près [du feu], il fait chaud.", func: "Complément de l'Adverbe", expl: "Complète l'adverbe 'près'." },
+
+    { lvl: 3, sentence: "Quelqu'un [de bien] t'aidera.", func: "Complément du Pronom", expl: "Complète le pronom 'Quelqu'un'." },
+    { lvl: 3, sentence: "Rien [de grave] n'est arrivé.", func: "Complément du Pronom", expl: "Complète le pronom 'Rien'." },
+    { lvl: 3, sentence: "Celui [de gauche] est meilleur.", func: "Complément du Pronom", expl: "Complète le pronom démonstratif 'Celui'." },
+    { lvl: 3, sentence: "Chacun [de nous] doit agir.", func: "Complément du Pronom", expl: "Complète le pronom 'Chacun'." },
+    { lvl: 3, sentence: "Laquelle [des deux] préfères-tu ?", func: "Complément du Pronom", expl: "Complète le pronom 'Laquelle'." },
+    { lvl: 3, sentence: "Il n'y a personne [de motivé].", func: "Complément du Pronom", expl: "Complète 'personne'." },
+    { lvl: 3, sentence: "Quelque chose [d'étrange] se passe.", func: "Complément du Pronom", expl: "Complète 'Quelque chose'." },
+    { lvl: 3, sentence: "Certains [d'entre eux] sont partis.", func: "Complément du Pronom", expl: "Complète 'Certains'." },
+
+    { lvl: 3, sentence: "Il est fier [de son fils].", func: "Complément de l'Adjectif", expl: "Complète l'adjectif 'fier'." },
+    { lvl: 3, sentence: "Elle est prête [à partir].", func: "Complément de l'Adjectif", expl: "Complète l'adjectif 'prête'." },
+    { lvl: 3, sentence: "Le vase est plein [d'eau].", func: "Complément de l'Adjectif", expl: "Complète l'adjectif 'plein'." },
+    { lvl: 3, sentence: "Il est rouge [de colère].", func: "Complément de l'Adjectif", expl: "Complète l'adjectif 'rouge'." },
+    { lvl: 3, sentence: "C'est facile [à faire].", func: "Complément de l'Adjectif", expl: "Complète l'adjectif 'facile'." },
+    { lvl: 3, sentence: "Je suis heureux [de te voir].", func: "Complément de l'Adjectif", expl: "Complète l'adjectif 'heureux'." },
+    { lvl: 3, sentence: "C'est utile [à la communauté].", func: "Complément de l'Adjectif", expl: "Complète l'adjectif 'utile'." },
+    { lvl: 3, sentence: "Il est capable [de tout].", func: "Complément de l'Adjectif", expl: "Complète l'adjectif 'capable'." },
+
+    { lvl: 3, sentence: "Le livre [que je lis] est top.", func: "Complément de l'Antécédent", expl: "Relative complétant 'livre'." },
+    { lvl: 3, sentence: "L'homme [qui parle] est mon père.", func: "Complément de l'Antécédent", expl: "Relative complétant 'homme'." },
+    { lvl: 3, sentence: "La ville [où je suis né] a changé.", func: "Complément de l'Antécédent", expl: "Relative complétant 'ville'." },
+    { lvl: 3, sentence: "La leçon [dont je parle] est dure.", func: "Complément de l'Antécédent", expl: "Relative complétant 'leçon'." },
+    { lvl: 3, sentence: "L'ami [avec qui je joue] est là.", func: "Complément de l'Antécédent", expl: "Relative complétant 'ami'." },
+    { lvl: 3, sentence: "Le chien [qui aboie] est le mien.", func: "Complément de l'Antécédent", expl: "Relative complétant 'chien'." },
+    { lvl: 3, sentence: "C'est la maison [que je veux].", func: "Complément de l'Antécédent", expl: "Relative complétant 'maison'." },
+    { lvl: 3, sentence: "Le jour [où il viendra] sera férié.", func: "Complément de l'Antécédent", expl: "Relative complétant 'jour'." },
+
+    { lvl: 3, sentence: "[Le] chat mange.", func: "Détermine le nom", expl: "Article défini." },
+    { lvl: 3, sentence: "[Une] pomme rouge.", func: "Détermine le nom", expl: "Article indéfini." },
+    { lvl: 3, sentence: "[Mon] livre est ici.", func: "Détermine le nom", expl: "Déterminant possessif." },
+    { lvl: 3, sentence: "[Ce] chien est beau.", func: "Détermine le nom", expl: "Déterminant démonstratif." },
+    { lvl: 3, sentence: "[Plusieurs] personnes sont là.", func: "Détermine le nom", expl: "Déterminant indéfini." },
+    { lvl: 3, sentence: "[Quel] âge as-tu ?", func: "Détermine le nom", expl: "Déterminant interrogatif." },
+    { lvl: 3, sentence: "[Trois] souris courent.", func: "Détermine le nom", expl: "Déterminant numéral." },
+    { lvl: 3, sentence: "[Leurs] affaires sont prêtes.", func: "Détermine le nom", expl: "Déterminant possessif pluriel." }
+];
+
+/* Catégories pour l'affichage en liste complète (niveau Stratège) */
+const funcCategories = {
+    "Fonctions Essentielles": ["Sujet", "COD", "COI", "Attribut du Sujet", "Attribut du COD", "C. Essentiel de Lieu", "C. Essentiel de Temps", "Complément d'Agent"],
+    "Compléments Circonstanciels": ["CC Temps", "CC Lieu", "CC Manière", "CC Moyen", "CC But", "CC Cause", "CC Conséquence", "CC Accompagnement", "CC Condition"],
+    "Autres Fonctions": ["Complément du Nom", "Epithète Liée", "Epithète Détachée", "Complément de l'Adverbe", "Complément du Pronom", "Complément de l'Adjectif", "Complément de l'Antécédent", "Détermine le nom"]
+};
+
+/* ================= CONFIGURATION FIREBASE (duel à distance) =================
+   Remplacez ces valeurs par celles de VOTRE projet Firebase :
+   Console Firebase > Paramètres du projet > Vos applications > Config du SDK.
+   Activez la "Realtime Database" (le mode test convient pour un usage en classe).
+   Tant que ces valeurs ne sont pas remplacées, le duel à distance affichera un message d'erreur.
+   Note : par simplicité (pas de serveur), les positions des navires transitent par la
+   base de données et pourraient techniquement être lues via les outils développeur du
+   navigateur. Convient à un usage de classe basé sur la confiance, pas à un contexte
+   compétitif sécurisé.
+*/
+const firebaseConfig = {
+    apiKey: "VOTRE_API_KEY",
+    authDomain: "VOTRE_PROJET.firebaseapp.com",
+    databaseURL: "https://VOTRE_PROJET-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "VOTRE_PROJET",
+    storageBucket: "VOTRE_PROJET.appspot.com",
+    messagingSenderId: "000000000000",
+    appId: "1:000000000000:web:xxxxxxxxxxxxxxxxxxxxxx"
+};
+let fbApp = null, fbDb = null;
+function ensureFirebase() {
+    if (fbApp) return true;
+    if (firebaseConfig.apiKey.includes('VOTRE_')) {
+        alert("Le duel à distance nécessite de configurer votre projet Firebase dans le code (voir le commentaire 'CONFIGURATION FIREBASE' en haut du script).");
+        return false;
+    }
+    try {
+        fbApp = firebase.initializeApp(firebaseConfig);
+        fbDb = firebase.database();
+        return true;
+    } catch (e) {
+        alert("Connexion au serveur de duel impossible : " + e.message);
+        return false;
+    }
+}
+
+/* ================= ÉTAT DU JEU ================= */
+let game = {
+    level: 1, size: 6,
+    pGrid: [], cGrid: [],
+    pShips: [], cShips: [],
+    queue: [], orientation: 'H',
+    target: null, cShots: [],
+    mode: 'ai',            // 'ai' ou 'remote'
+    aiFailChance: 0,       // probabilité que l'IA se trompe (0 = comportement classique niveaux 1-3)
+    turn: 'p1',
+    placingFor: 'p1',
+    pendingAction: null,
+    levelsWon: new Set(),  // niveaux 1-3 remportés cette session (débloque le niveau 4)
+    testMode: false,       // mode développeur : débloque le niveau 4 + place/gagne instantanément
+    // --- état du duel à distance ---
+    roomCode: null, myRole: null, room: null,
+    remoteGrid: null, remoteShips: [], remotePlacementStarted: false
+};
+
+const levels = {
+    1: { size: 6, ships: [3, 2, 2] },
+    2: { size: 8, ships: [4, 3, 3, 2] },
+    3: { size: 10, ships: [5, 4, 3, 3, 2] },
+    4: { size: 12, ships: [5, 4, 3, 2] } // Stratège : grande grille, mais peu de navires -> beaucoup d'eau !
+};
+
+/* ================= NAVIGATION & VERROUILLAGE DU NIVEAU 4 ================= */
+function showScreen(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active-screen')); document.getElementById(id).classList.add('active-screen'); }
+function showLevelScreen() { updateLevel4Lock(); showScreen('level-screen'); }
+
+function toggleTestMode() {
+    if (game.testMode) { game.testMode = false; refreshTestModeUI(); return; }
+    const pw = prompt("Mot de passe du mode test :");
+    if (pw === null) return;
+    checkTestPassword(pw.trim());
+}
+async function checkTestPassword(pw) {
+    // Le mot de passe n'apparaît jamais en clair dans le code : seule son empreinte SHA-256 est stockée,
+    // et comparée à l'empreinte de ce que l'utilisateur tape.
+    const TEST_PW_HASH = "6d616e5b5db229bffa547956723a9f088c63f8782438a5712cf7321ba462aa04";
+    try {
+        const enc = new TextEncoder().encode(pw);
+        const buf = await crypto.subtle.digest('SHA-256', enc);
+        const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+        if (hex === TEST_PW_HASH) { game.testMode = true; refreshTestModeUI(); }
+        else alert("Mot de passe incorrect.");
+    } catch (e) {
+        alert("Impossible de vérifier le mot de passe ici (nécessite une page servie en HTTPS ou en localhost, pas un simple double-clic sur le fichier).");
+    }
+}
+function refreshTestModeUI() {
+    const link = document.getElementById('test-mode-toggle');
+    link.innerText = game.testMode ? '🛠 Mode test ACTIVÉ (cliquer pour désactiver)' : '🛠 Mode test';
+    link.style.color = game.testMode ? '#e67e22' : '#7a8b99';
+    link.style.fontWeight = game.testMode ? 'bold' : 'normal';
+    updateLevel4Lock();
+    applyTestModeUI();
+}
+function applyTestModeUI() {
+    const winBtn = document.getElementById('test-win-btn');
+    if (winBtn) winBtn.style.display = game.testMode ? 'inline-block' : 'none';
+    const placeBtn = document.getElementById('auto-place-btn');
+    if (placeBtn) placeBtn.style.display = game.testMode ? 'inline-block' : 'none';
+}
+function autoPlaceRemaining() {
+    while (game.queue.length > 0) {
+        const size = game.queue[0];
+        const grid = currentPlacementGrid();
+        let placed = false, attempts = 0;
+        while (!placed && attempts < 500) {
+            attempts++;
+            let x = Math.floor(Math.random() * game.size), y = Math.floor(Math.random() * game.size);
+            let orient = Math.random() > 0.5 ? 'H' : 'V';
+            let coords = []; let valid = true;
+            for (let i = 0; i < size; i++) {
+                let nx = x + (orient === 'H' ? i : 0), ny = y + (orient === 'V' ? i : 0);
+                if (nx >= game.size || ny >= game.size || grid[ny][nx] === 1) { valid = false; break; }
+                coords.push({ x: nx, y: ny });
+            }
+            if (valid) {
+                coords.forEach(c => grid[c.y][c.x] = 1);
+                if (game.placingFor === 'remote') game.remoteShips.push(coords); else game.pShips.push(coords);
+                game.queue.shift();
+                placed = true;
+            }
+        }
+        if (!placed) break; // sécurité anti-boucle infinie
+    }
+    renderGrid('placement-grid', currentPlacementGrid(), true, null);
+    updateInstruct();
+}
+function testInstantWin() {
+    if (!game.testMode) return;
+    if (game.mode === 'remote') {
+        if (!game.roomCode) return;
+        fbDb.ref('rooms/' + game.roomCode).update({ status: 'finished', winner: game.myRole });
+    } else {
+        onLocalWin();
+    }
+}
+
+function updateLevel4Lock() {
+    const btn = document.getElementById('level4-btn');
+    const desc = document.getElementById('level4-desc');
+    const unlocked = game.testMode || [1, 2, 3].every(l => game.levelsWon.has(l));
+    if (unlocked) {
+        btn.classList.remove('btn-locked'); btn.classList.add('btn-dark');
+        btn.innerHTML = '⚫ Stratège Suprême (Grille XL)';
+        btn.onclick = () => showScreen('mode-screen');
+        desc.innerText = "Toutes les fonctions, sans indice - IA ou duel à distance contre un camarade !";
+    } else {
+        btn.classList.add('btn-locked'); btn.classList.remove('btn-dark');
+        btn.innerHTML = '🔒 Stratège Suprême (verrouillé)';
+        btn.onclick = null;
+        const missing = [1, 2, 3].filter(l => !game.levelsWon.has(l)).length;
+        desc.innerText = `Remportez les ${missing} niveau${missing > 1 ? 'x' : ''} précédent${missing > 1 ? 's' : ''} pour débloquer ce niveau.`;
+    }
+}
+
+function showDifficultyScreen() { showScreen('difficulty-screen'); }
+function setDifficultyAndProceed(chance) { initGame(4, chance); }
+function selectRemote() { game.mode = 'remote'; showScreen('remote-screen'); document.getElementById('remote-status').innerText = ''; }
+
+function applyScreenWidth() {
+    const wide = (game.level === 4);
+    ['placement-screen', 'game-screen'].forEach(id => document.getElementById(id).classList.toggle('screen-xl', wide));
+}
+
+/* ================= PARTIE LOCALE (IA) ================= */
+function initGame(lvl, failChance) {
+    game.level = lvl; game.mode = 'ai'; game.aiFailChance = (typeof failChance === 'number') ? failChance : 0;
+    game.size = levels[lvl].size; game.queue = [...levels[lvl].ships];
+    game.pGrid = createGrid(game.size); game.cGrid = createGrid(game.size);
+    game.pShips = []; game.cShips = []; game.cShots = []; game.turn = 'p1';
+    startPlacement('p1');
+}
+function createGrid(s) { return Array(s).fill().map(() => Array(s).fill(0)); }
+
+/* ================= PLACEMENT (IA & distant, une seule flotte à la fois) ================= */
+function startPlacement(who) {
+    game.placingFor = who;
+    applyScreenWidth();
+    showScreen('placement-screen');
+    const label = document.getElementById('placement-player-label');
+    label.innerText = (game.mode === 'remote') ? `(Partie ${game.roomCode})` : '';
+    renderGrid('placement-grid', currentPlacementGrid(), true, null);
+    updateInstruct();
+    applyTestModeUI();
+}
+function currentPlacementGrid() { return (game.placingFor === 'remote') ? game.remoteGrid : game.pGrid; }
+function updateInstruct() {
+    if (game.queue.length > 0) document.getElementById('placement-instruction').innerHTML = `Placez un navire de <b>${game.queue[0]} cases</b>.`;
+    else finishPlacement();
+}
+function toggleOrientation() { game.orientation = game.orientation === 'H' ? 'V' : 'H'; }
+function handlePlacementClick(x, y) {
+    if (game.queue.length === 0) return;
+    const grid = currentPlacementGrid();
+    const size = game.queue[0]; const coords = [];
+    for (let i = 0; i < size; i++) {
+        let nx = x + (game.orientation === 'H' ? i : 0); let ny = y + (game.orientation === 'V' ? i : 0);
+        if (nx >= game.size || ny >= game.size || grid[ny][nx] === 1) { alert("Placement impossible !"); return; }
+        coords.push({ x: nx, y: ny });
+    }
+    coords.forEach(c => grid[c.y][c.x] = 1);
+    if (game.placingFor === 'remote') game.remoteShips.push(coords); else game.pShips.push(coords);
+    game.queue.shift();
+    renderGrid('placement-grid', grid, true, null); updateInstruct();
+}
+function finishPlacement() {
+    if (game.mode === 'remote') { finishRemotePlacement(); return; }
+    placeAIShips(); beginGame();
+}
+function placeAIShips() {
+    levels[game.level].ships.forEach(size => {
+        let placed = false;
+        while (!placed) {
+            let x = Math.floor(Math.random() * game.size); let y = Math.floor(Math.random() * game.size); let h = Math.random() > 0.5; let coords = []; let valid = true;
+            for (let i = 0; i < size; i++) {
+                let nx = x + (h ? i : 0); let ny = y + (h ? 0 : i);
+                if (nx >= game.size || ny >= game.size || game.cGrid[ny][nx] === 1) valid = false;
+                coords.push({ x: nx, y: ny });
+            }
+            if (valid) { coords.forEach(c => game.cGrid[c.y][c.x] = 1); game.cShips.push(coords); placed = true; }
+        }
+    });
+}
+function beginGame() {
+    game.turn = 'p1'; applyScreenWidth();
+    showScreen('game-screen'); updateGameGrids();
+    updateTurnIndicator("À VOS ORDRES !", true);
+    applyTestModeUI();
+}
+
+/* ================= AFFICHAGE DES GRILLES ================= */
+function renderGrid(elementId, gridData, showShips, shipsForSunk) {
+    const el = document.getElementById(elementId); el.innerHTML = ''; el.style.gridTemplateColumns = `repeat(${game.size}, 1fr)`;
+    const isSmall = (elementId === 'player-grid');
+    const cellPx = isSmall
+        ? (game.size <= 6 ? 25 : game.size <= 8 ? 22 : game.size <= 10 ? 18 : 20)
+        : (game.size <= 6 ? 45 : game.size <= 8 ? 42 : game.size <= 10 ? 38 : 40);
+    for (let y = 0; y < game.size; y++) {
+        for (let x = 0; x < game.size; x++) {
+            const cell = document.createElement('div'); cell.className = 'cell';
+            cell.style.width = cellPx + 'px'; cell.style.height = cellPx + 'px'; cell.style.fontSize = Math.floor(cellPx * 0.5) + 'px';
+            const val = gridData[y][x];
+            if (showShips && val === 1) cell.classList.add('ship');
+            if (val === 2) cell.classList.add('miss');
+            if (val === 3) cell.classList.add('hit');
+            if (val === 3 && shipsForSunk && isSunk(shipsForSunk, x, y, gridData)) cell.classList.add('sunk');
+            if (elementId === 'placement-grid') cell.onclick = () => handlePlacementClick(x, y);
+            else if (elementId === 'enemy-grid') cell.onclick = () => handlePlayerAttack(x, y);
+            el.appendChild(cell);
+        }
+    }
+}
+function updateGameGrids() {
+    renderGrid('enemy-grid', game.cGrid, false, game.cShips);
+    renderGrid('player-grid', game.pGrid, true, game.pShips);
+    const titles = document.querySelectorAll('#game-screen .grid-title');
+    titles[0].innerText = 'ZONE ENNEMIE (CIBLE)';
+    titles[1].innerText = 'VOTRE FLOTTE';
+}
+function isSunk(ships, x, y, grid) { const ship = ships.find(s => s.some(c => c.x === x && c.y === y)); return ship && ship.every(c => grid[c.y][c.x] === 3); }
+
+/* ================= GAMEPLAY LOCAL (IA) ================= */
+function handlePlayerAttack(x, y) {
+    if (game.mode === 'remote') { handleRemoteAttackClick(x, y); return; }
+    if (game.turn !== 'p1') return;
+    if (game.cGrid[y][x] > 1) return;
+    game.target = { x, y };
+    askQuestion();
+}
+
+function askQuestion() {
+    const qList = database.filter(q => q.lvl <= Math.min(game.level, 3));
+    const q = qList[Math.floor(Math.random() * qList.length)];
+
+    document.getElementById('q-sentence').innerHTML = q.sentence.replace(/\[(.*?)\]/, '<span class="highlight">$1</span>');
+
+    const modalBox = document.querySelector('#question-modal .modal-box');
+    const c = document.getElementById('q-options'); c.innerHTML = '';
+
+    if (game.level === 4) {
+        modalBox.classList.add('wide');
+        c.className = 'full-options';
+        Object.entries(funcCategories).forEach(([cat, funcs]) => {
+            const div = document.createElement('div'); div.className = 'func-category';
+            const h = document.createElement('h4'); h.innerText = cat; div.appendChild(h);
+            funcs.forEach(f => {
+                const btn = document.createElement('div'); btn.className = 'func-btn'; btn.innerText = f;
+                btn.onclick = () => handleAnswerSelected(f, q);
+                div.appendChild(btn);
+            });
+            c.appendChild(div);
+        });
+    } else {
+        modalBox.classList.remove('wide');
+        c.className = 'options-container';
+        const allFuncs = [...new Set(database.map(item => item.func))];
+        const wrongs = allFuncs.filter(f => f !== q.func).sort(() => 0.5 - Math.random()).slice(0, 3);
+        const opts = [q.func, ...wrongs].sort(() => 0.5 - Math.random());
+        opts.forEach(o => {
+            const btn = document.createElement('div'); btn.className = 'opt-btn'; btn.innerText = o;
+            btn.onclick = () => handleAnswerSelected(o, q); c.appendChild(btn);
+        });
+    }
+    document.getElementById('question-modal').style.display = 'flex';
+}
+
+function handleAnswerSelected(ans, qObj) {
+    if (game.mode === 'remote') processRemoteAnswer(ans, qObj);
+    else processLocalAnswer(ans, qObj);
+}
+
+function processLocalAnswer(ans, qObj) {
+    document.getElementById('question-modal').style.display = 'none';
+    const { x, y } = game.target;
+    const isCorrect = (ans === qObj.func);
+    let isHit = isCorrect && game.cGrid[y][x] === 1;
+
+    showFeedback(isCorrect, isHit, qObj.func, qObj.expl);
+
+    game.pendingAction = () => {
+        if (isCorrect) {
+            game.cGrid[y][x] = isHit ? 3 : 2;
+            updateGameGrids();
+            if (checkVictoryCondition()) return;
+            updateTurnIndicator(isHit ? "TOUCHÉ ! CONTINUEZ !" : "À L'EAU... IMMUNITÉ ACTIVÉE !", true);
+        } else {
+            updateTurnIndicator("ERREUR ! CONTRE-ATTAQUE !", false);
+            setTimeout(switchTurnAndCounter, 1200);
+        }
+    };
+}
+
+function switchTurnAndCounter() {
+    game.turn = 'p2';
+    updateGameGrids();
+    setTimeout(computerTurn, 400);
+}
+
+function updateTurnIndicator(msg, active) {
+    const el = document.getElementById('turn-indicator'); el.innerText = msg;
+    el.style.color = active ? "var(--hit-color)" : "var(--deep-ocean)";
+}
+
+/* ================= FEEDBACK ================= */
+function showFeedback(isCorrect, isHit, correctFunc, explanation) {
+    const overlay = document.getElementById('feedback-overlay');
+    const iconCont = document.getElementById('fb-icon-container');
+    const title = document.getElementById('fb-title');
+    const sub = document.getElementById('fb-subtitle');
+    const expl = document.getElementById('fb-expl');
+
+    overlay.style.display = 'flex';
+    if (isCorrect) {
+        if (isHit) {
+            iconCont.innerHTML = `<svg class="feedback-icon explosion-svg" viewBox="0 0 24 24"><path d="M12,2L14.5,9H22L16,13.5L18.5,21L12,16.5L5.5,21L8,13.5L2,9H9.5L12,2Z" /></svg>`;
+            title.innerHTML = "BOUM ! TOUCHÉ !"; title.style.color = "#e74c3c"; sub.innerHTML = "Analyse exacte. Tir réussi !";
+        } else {
+            iconCont.innerHTML = `<svg class="feedback-icon" style="fill:#3498db" viewBox="0 0 24 24"><path d="M12,20A6,6 0 0,1 6,14C6,10 12,2 12,2C12,2 18,10 18,14A6,6 0 0,1 12,20Z" /></svg>`;
+            title.innerHTML = "PLOUF... À L'EAU"; title.style.color = "#3498db"; sub.innerHTML = "Mais bonne analyse : <strong>vous rejouez.</strong>";
+        }
+    } else {
+        iconCont.innerHTML = `<svg class="feedback-icon skull-svg" viewBox="0 0 24 24"><path d="M12,2C15.86,2 19,5.13 19,9C19,14.25 12,22 12,22C12,22 5,14.25 5,9C5,5.13 8.14,2 12,2M10,7A2,2 0 0,0 8,9A2,2 0 0,0 10,11A2,2 0 0,0 12,9A2,2 0 0,0 10,7M14,7A2,2 0 0,0 12,9A2,2 0 0,0 14,11A2,2 0 0,0 16,9A2,2 0 0,0 14,7Z" /></svg>`;
+        title.innerHTML = "ERREUR"; title.style.color = "#7f8c8d";
+        sub.innerHTML = `La réponse était : <strong>${correctFunc}</strong>.<br>L'ennemi contre-attaque !`;
+    }
+    expl.innerHTML = "💡 " + explanation;
+}
+
+function closeFeedback() { document.getElementById('feedback-overlay').style.display = 'none'; if (game.pendingAction) game.pendingAction(); }
+
+function computerTurn() {
+    if (checkVictoryCondition()) return;
+    const aiSucceeds = Math.random() > game.aiFailChance;
+    if (!aiSucceeds) {
+        game.turn = 'p1';
+        updateGameGrids();
+        updateTurnIndicator("L'IA S'EST TROMPÉE ! À VOUS !", true);
+        return;
+    }
+    let x, y, valid = false;
+    while (!valid) {
+        x = Math.floor(Math.random() * game.size); y = Math.floor(Math.random() * game.size);
+        if (!game.cShots.some(s => s.x === x && s.y === y)) valid = true;
+    }
+    game.cShots.push({ x, y });
+    const hit = (game.pGrid[y][x] === 1); game.pGrid[y][x] = hit ? 3 : 2;
+    updateGameGrids();
+    if (checkVictoryCondition()) return;
+    if (hit) {
+        updateTurnIndicator("L'IA A TOUCHÉ ! ELLE REJOUE...", false);
+        setTimeout(computerTurn, 1200);
+    } else {
+        game.turn = 'p1';
+        updateGameGrids();
+        updateTurnIndicator("RIPOSTE TERMINÉE. À VOUS !", true);
+    }
+}
+
+function checkVictoryCondition() {
+    const p1Lost = game.pShips.every(s => s.every(c => game.pGrid[c.y][c.x] === 3));
+    const p2Lost = game.cShips.every(s => s.every(c => game.cGrid[c.y][c.x] === 3));
+    if (p2Lost) { onLocalWin(); return true; }
+    if (p1Lost) { onLocalLoss(); return true; }
+    return false;
+}
+function onLocalWin() {
+    if (game.level < 4) game.levelsWon.add(game.level);
+    triggerWin('Joueur');
+}
+function onLocalLoss() {
+    setTimeout(() => { alert("Flotte détruite... Retraite ! Retour à la sélection des niveaux."); backToLevelSelect(); }, 500);
+}
+function backToLevelSelect() {
+    document.getElementById('confetti-canvas').style.display = 'none';
+    showLevelScreen();
+}
+
+/* ================= DUEL À DISTANCE (Firebase, code à 4 chiffres) ================= */
+function createRemoteRoom() {
+    if (!ensureFirebase()) return;
+    const code = String(Math.floor(1000 + Math.random() * 9000));
+    game.roomCode = code; game.myRole = 'p1';
+    const roomData = {
+        createdAt: firebase.database.ServerValue.TIMESTAMP,
+        status: 'waiting', size: levels[4].size, shipsConfig: levels[4].ships,
+        turn: 'p1', winner: null,
+        players: { p1: { ships: null, incoming: {}, ready: false }, p2: null }
+    };
+    fbDb.ref('rooms/' + code).set(roomData).then(() => {
+        document.getElementById('remote-status').innerHTML = `Code de la partie : <span style="font-size:2em;letter-spacing:6px;color:var(--gold-accent)">${code}</span><br>En attente d'un camarade...`;
+        listenToRoom(code);
+    }).catch(e => alert("Erreur de création de partie : " + e.message));
+}
+function joinRemoteRoom() {
+    if (!ensureFirebase()) return;
+    const code = document.getElementById('join-code-input').value.trim();
+    if (!/^[0-9]{4}$/.test(code)) { alert("Entrez un code à 4 chiffres valide."); return; }
+    const ref = fbDb.ref('rooms/' + code);
+    ref.get().then(snap => {
+        if (!snap.exists()) { alert("Aucune partie avec ce code."); return; }
+        const room = snap.val();
+        if (room.players && room.players.p2) { alert("Cette partie est déjà complète."); return; }
+        game.roomCode = code; game.myRole = 'p2';
+        ref.child('players/p2').set({ ships: null, incoming: {}, ready: false }).then(() => {
+            ref.child('status').set('placing');
+            document.getElementById('remote-status').innerText = "Connecté ! Préparez votre flotte...";
+            listenToRoom(code);
+        });
+    }).catch(e => alert("Erreur de connexion : " + e.message));
+}
+function listenToRoom(code) {
+    fbDb.ref('rooms/' + code).on('value', snap => {
+        game.room = snap.val();
+        onRemoteRoomUpdate();
+    });
+}
+function onRemoteRoomUpdate() {
+    const room = game.room;
+    if (!room) return;
+
+    if (room.status === 'waiting') return; // écran d'attente déjà affiché
+
+    if (room.status === 'placing') {
+        const me = room.players[game.myRole];
+        if (me && !me.ready && !game.remotePlacementStarted) {
+            game.remotePlacementStarted = true;
+            game.level = 4; game.size = room.size; game.queue = [...room.shipsConfig];
+            game.remoteGrid = createGrid(game.size); game.remoteShips = [];
+            startPlacement('remote');
+        } else if (me && me.ready && document.getElementById('remote-screen').classList.contains('active-screen') === false && !document.getElementById('game-screen').classList.contains('active-screen')) {
+            showScreen('remote-screen');
+            document.getElementById('remote-status').innerText = "Flotte déployée ! En attente de votre camarade...";
+        }
+        return;
+    }
+
+    if (room.status === 'playing') {
+        game.remotePlacementStarted = false;
+        game.level = 4; game.size = room.size;
+        applyScreenWidth();
+        showScreen('game-screen');
+        renderRemoteGrids();
+        const myTurn = room.turn === game.myRole;
+        updateTurnIndicator(myTurn ? "À VOUS DE JOUER !" : "TOUR DE VOTRE CAMARADE...", myTurn);
+        applyTestModeUI();
+        return;
+    }
+
+    if (room.status === 'finished') {
+        const iWon = room.winner === game.myRole;
+        fbDb.ref('rooms/' + game.roomCode).off();
+        const finishedCode = game.roomCode; game.roomCode = null;
+        triggerWin(iWon ? 'Vous' : 'Votre camarade');
+    }
+}
+function finishRemotePlacement() {
+    const updates = {};
+    updates[`rooms/${game.roomCode}/players/${game.myRole}/ships`] = game.remoteShips;
+    updates[`rooms/${game.roomCode}/players/${game.myRole}/ready`] = true;
+    fbDb.ref().update(updates);
+    showScreen('remote-screen');
+    document.getElementById('remote-status').innerText = "Flotte déployée ! En attente de votre camarade...";
+}
+function renderRemoteGrids() {
+    const room = game.room;
+    const oppRole = game.myRole === 'p1' ? 'p2' : 'p1';
+    const myShips = (room.players[game.myRole] && room.players[game.myRole].ships) || [];
+    const oppShipsKnown = (room.players[oppRole] && room.players[oppRole].ships) || [];
+    const incomingOnMe = (room.players[game.myRole] && room.players[game.myRole].incoming) || {};
+    const incomingOnOpp = (room.players[oppRole] && room.players[oppRole].incoming) || {};
+
+    const targetGrid = createGrid(game.size);
+    Object.keys(incomingOnOpp).forEach(key => {
+        const [x, y] = key.split('_').map(Number);
+        targetGrid[y][x] = incomingOnOpp[key] ? 3 : 2;
+    });
+    const ownGrid = createGrid(game.size);
+    myShips.forEach(ship => ship.forEach(c => ownGrid[c.y][c.x] = 1));
+    Object.keys(incomingOnMe).forEach(key => {
+        const [x, y] = key.split('_').map(Number);
+        ownGrid[y][x] = incomingOnMe[key] ? 3 : 2;
+    });
+
+    renderGrid('enemy-grid', targetGrid, false, oppShipsKnown);
+    renderGrid('player-grid', ownGrid, true, myShips);
+    const titles = document.querySelectorAll('#game-screen .grid-title');
+    titles[0].innerText = 'ZONE ENNEMIE (CIBLE)';
+    titles[1].innerText = 'VOTRE FLOTTE';
+}
+function handleRemoteAttackClick(x, y) {
+    if (!game.room || game.room.status !== 'playing' || game.room.turn !== game.myRole) return;
+    const oppRole = game.myRole === 'p1' ? 'p2' : 'p1';
+    const incoming = (game.room.players[oppRole] && game.room.players[oppRole].incoming) || {};
+    if (incoming[`${x}_${y}`] !== undefined) return;
+    game.target = { x, y };
+    askQuestion();
+}
+function processRemoteAnswer(ans, qObj) {
+    document.getElementById('question-modal').style.display = 'none';
+    const { x, y } = game.target;
+    const isCorrect = (ans === qObj.func);
+    const oppRole = game.myRole === 'p1' ? 'p2' : 'p1';
+    const oppShips = (game.room.players[oppRole] && game.room.players[oppRole].ships) || [];
+    let isHit = isCorrect && oppShips.some(ship => ship.some(c => c.x === x && c.y === y));
+
+    showFeedback(isCorrect, isHit, qObj.func, qObj.expl);
+
+    game.pendingAction = () => {
+        const updates = {};
+        if (isCorrect) {
+            updates[`rooms/${game.roomCode}/players/${oppRole}/incoming/${x}_${y}`] = isHit;
+            const incomingAfter = Object.assign({}, ((game.room.players[oppRole] && game.room.players[oppRole].incoming) || {}), { [`${x}_${y}`]: isHit });
+            const allSunk = oppShips.length > 0 && oppShips.every(ship => ship.every(c => incomingAfter[`${c.x}_${c.y}`] === true));
+            if (allSunk) {
+                updates[`rooms/${game.roomCode}/status`] = 'finished';
+                updates[`rooms/${game.roomCode}/winner`] = game.myRole;
+            }
+            updateTurnIndicator(isHit ? "TOUCHÉ ! CONTINUEZ !" : "À L'EAU... IMMUNITÉ ACTIVÉE !", true);
+        } else {
+            updates[`rooms/${game.roomCode}/turn`] = oppRole;
+            updateTurnIndicator("ERREUR ! TOUR DE VOTRE CAMARADE...", false);
+        }
+        fbDb.ref().update(updates);
+    };
+}
+
+/* ================= VICTOIRE ================= */
+function triggerWin(winnerName) {
+    const canvas = document.getElementById('confetti-canvas'); canvas.style.display = 'block';
+    const ctx = canvas.getContext('2d'); canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+    let particles = []; const colors = ['#f1c40f', '#e74c3c', '#3498db', '#ecf0f1', '#9b59b6'];
+    for (let i = 0; i < 150; i++) particles.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height - canvas.height, color: colors[Math.floor(Math.random() * colors.length)], size: Math.random() * 10 + 5, speedY: Math.random() * 5 + 2, speedX: Math.random() * 4 - 2 });
+    let running = true;
+    function animate() {
+        if (!running) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.font = "bold 46px Segoe UI"; ctx.fillStyle = "white"; ctx.textAlign = "center"; ctx.fillText(`VICTOIRE, ${winnerName.toUpperCase()} !`, canvas.width / 2, canvas.height / 2);
+        particles.forEach(p => { ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.size, p.size); p.y += p.speedY; p.x += p.speedX; if (p.y > canvas.height) p.y = -10; });
+        requestAnimationFrame(animate);
+    }
+    animate();
+    setTimeout(() => {
+        running = false; canvas.style.display = 'none';
+        alert(`Victoire, ${winnerName} !`);
+        backToLevelSelect();
+    }, 3000);
+}
+
+/* ================= INITIALISATION ================= */
+updateLevel4Lock();
+</script>
+</body>
+</html>
