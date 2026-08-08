@@ -1004,14 +1004,20 @@ function onRemoteRoomUpdate() {
 
     if (room.status === 'placing') {
         const me = room.players[game.myRole];
+        const oppRole = game.myRole === 'p1' ? 'p2' : 'p1';
+        const opp = room.players[oppRole];
         if (me && !me.ready && !game.remotePlacementStarted) {
             game.remotePlacementStarted = true;
             game.level = 4; game.size = room.size; game.queue = [...room.shipsConfig];
             game.remoteGrid = createGrid(game.size); game.remoteShips = [];
             startPlacement('remote');
-        } else if (me && me.ready && document.getElementById('remote-screen').classList.contains('active-screen') === false && !document.getElementById('game-screen').classList.contains('active-screen')) {
-            showScreen('remote-screen');
-            document.getElementById('remote-status').innerText = "Flotte déployée ! En attente de votre camarade...";
+        } else if (me && me.ready) {
+            if (opp && opp.ready) {
+                fbDb.ref('rooms/' + game.roomCode).update({ status: 'playing', turn: 'p1' });
+            } else {
+                showScreen('remote-screen');
+                document.getElementById('remote-status').innerText = "Flotte déployée ! En attente de votre camarade...";
+            }
         }
         return;
     }
