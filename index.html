@@ -189,15 +189,6 @@
         <div class="option-desc" id="level4-desc"></div>
     </div>
 
-    <div id="chrono-screen" class="screen">
-        <h2>⏱ Chrono des réponses</h2>
-        <p>Combien de temps pour répondre à chaque question ?</p>
-        <button class="btn" onclick="setChronoAndProceed(null)">🕊 Pas de limite</button>
-        <button class="btn" onclick="setChronoAndProceed(10)">🐢 10 secondes</button>
-        <button class="btn" onclick="setChronoAndProceed(5)">🐇 5 secondes</button>
-        <button class="btn btn-dark" onclick="setChronoAndProceed(3)">⚡ 3 secondes</button>
-    </div>
-
     <div id="mode-screen" class="screen">
         <h2>⚫ Stratège Suprême — Choisissez votre adversaire</h2>
         <p style="background:#fdf2e3; border-left:4px solid var(--gold-accent); padding:10px 15px; text-align:left; max-width:600px; margin:0 auto 15px; font-size:0.9em;">⚠️ Règle spéciale à ce niveau : chaque joueur ne tire qu'<strong>une seule fois par tour</strong>, à tour de rôle — que la réponse soit juste ou fausse, touché ou manqué.</p>
@@ -230,8 +221,13 @@
         </div>
         <div class="mode-card">
             <h3>🆕 Créer une partie</h3>
-            <p>Un code à 4 chiffres sera généré. Donnez-le à votre camarade (à l'oral, sur un post-it...).</p>
-            <button class="btn btn-gold" onclick="createRemoteRoom()">Créer</button>
+            <p>Un code à 4 chiffres sera généré. Donnez-le à votre camarade. Choisissez le temps de réponse pour la partie (identique pour vous deux) :</p>
+            <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:6px;">
+                <button class="btn" style="padding:10px 14px; font-size:0.8em; margin:3px;" onclick="createRemoteRoom(null)">🕊 Illimité</button>
+                <button class="btn" style="padding:10px 14px; font-size:0.8em; margin:3px;" onclick="createRemoteRoom(10)">🐢 10s</button>
+                <button class="btn" style="padding:10px 14px; font-size:0.8em; margin:3px;" onclick="createRemoteRoom(5)">🐇 5s</button>
+                <button class="btn btn-dark" style="padding:10px 14px; font-size:0.8em; margin:3px;" onclick="createRemoteRoom(3)">⚡ 3s</button>
+            </div>
         </div>
         <div class="mode-card">
             <h3>🔑 Rejoindre une partie</h3>
@@ -686,7 +682,7 @@ function updateLevel4Lock() {
     if (unlocked) {
         btn.classList.remove('btn-locked'); btn.classList.add('btn-dark');
         btn.innerHTML = '⚫ Stratège Suprême (Grille XL)';
-        btn.onclick = () => showScreen('chrono-screen');
+        btn.onclick = () => showScreen('mode-screen');
         desc.innerText = "Toutes les fonctions, sans indice - IA ou duel à distance contre un camarade !";
     } else {
         btn.classList.add('btn-locked'); btn.classList.remove('btn-dark');
@@ -698,7 +694,6 @@ function updateLevel4Lock() {
 }
 
 function showDifficultyScreen() { showScreen('difficulty-screen'); }
-function setChronoAndProceed(seconds) { game.timerSeconds = seconds; showScreen('mode-screen'); }
 function setDifficultyAndProceed(chance) { initGame(4, chance); }
 function selectRemote() { game.mode = 'remote'; showScreen('remote-screen'); document.getElementById('remote-status').innerText = ''; }
 
@@ -854,9 +849,8 @@ function askQuestion() {
 /* ================= CHRONO DES QUESTIONS ================= */
 let questionTimerInterval = null;
 function getActiveTimerSeconds() {
-    if (game.level !== 4) return null;
-    if (game.mode === 'remote') return (game.room && game.room.timerSeconds) || null;
-    return game.timerSeconds || null;
+    if (game.level !== 4 || game.mode !== 'remote') return null;
+    return (game.room && game.room.timerSeconds) || null;
 }
 function startQuestionTimer() {
     clearQuestionTimer();
@@ -1020,7 +1014,7 @@ function backToLevelSelect() {
 }
 
 /* ================= DUEL À DISTANCE (Firebase, code à 4 chiffres) ================= */
-function createRemoteRoom() {
+function createRemoteRoom(timerSeconds) {
     if (!ensureFirebase()) return;
     const name = document.getElementById('player-name-input').value.trim();
     if (!name) { alert("Entrez votre prénom avant de créer une partie."); return; }
@@ -1030,7 +1024,7 @@ function createRemoteRoom() {
     const roomData = {
         createdAt: firebase.database.ServerValue.TIMESTAMP,
         status: 'waiting', size: levels[4].size, shipsConfig: levels[4].ships,
-        turn: 'p1', winner: null, timerSeconds: game.timerSeconds,
+        turn: 'p1', winner: null, timerSeconds: timerSeconds,
         players: { p1: { ships: null, incoming: {}, ready: false, name: name }, p2: null }
     };
     fbDb.ref('rooms/' + code).set(roomData).then(() => {
@@ -1114,9 +1108,20 @@ function finishRemotePlacement() {
     const updates = {};
     updates[`rooms/${game.roomCode}/players/${game.myRole}/ships`] = game.remoteShips;
     updates[`rooms/${game.roomCode}/players/${game.myRole}/ready`] = true;
-    fbDb.ref().update(updates);
-    showScreen('remote-screen');
-    document.getElementById('remote-status').innerText = "Flotte déployée ! En attente de votre camarade...";
+
+    const oppRole = game.myRole === 'p1' ? 'p2' : 'p1';
+    const opp = game.room && game.room.players && game.room.players[oppRole];
+    if (opp && opp.ready) {
+        // L'adversaire a déjà fini de placer sa flotte : on démarre la partie tout de suite,
+        // sans passer par l'écran d'attente.
+        updates[`rooms/${game.roomCode}/status`] = 'playing';
+        updates[`rooms/${game.roomCode}/turn`] = 'p1';
+        fbDb.ref().update(updates);
+    } else {
+        fbDb.ref().update(updates);
+        showScreen('remote-screen');
+        document.getElementById('remote-status').innerText = "Flotte déployée ! En attente de votre camarade...";
+    }
 }
 function renderRemoteGrids() {
     const room = game.room;
