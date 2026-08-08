@@ -189,6 +189,7 @@
 
     <div id="mode-screen" class="screen">
         <h2>⚫ Stratège Suprême — Choisissez votre adversaire</h2>
+        <p style="background:#fdf2e3; border-left:4px solid var(--gold-accent); padding:10px 15px; text-align:left; max-width:600px; margin:0 auto 15px; font-size:0.9em;">⚠️ Règle spéciale à ce niveau : chaque joueur ne tire qu'<strong>une seule fois par tour</strong>, à tour de rôle — que la réponse soit juste ou fausse, touché ou manqué.</p>
         <div class="mode-card">
             <h3>🤖 Duel contre l'IA</h3>
             <p>Affrontez l'ordinateur. Choisissez son niveau de difficulté avant la bataille.</p>
@@ -847,10 +848,15 @@ function processLocalAnswer(ans, qObj) {
     showFeedback(isCorrect, isHit, qObj.func, qObj.expl);
 
     game.pendingAction = () => {
-        if (isCorrect) {
-            game.cGrid[y][x] = isHit ? 3 : 2;
-            updateGameGrids();
-            if (checkVictoryCondition()) return;
+        if (isCorrect) game.cGrid[y][x] = isHit ? 3 : 2;
+        updateGameGrids();
+        if (checkVictoryCondition()) return;
+
+        if (game.level === 4) {
+            // Stratège Suprême : tour strictement alterné, un seul tir par tour
+            updateTurnIndicator(isCorrect ? "TOUR TERMINÉ. AU TOUR DE L'ENNEMI..." : "ERREUR ! TOUR TERMINÉ...", false);
+            setTimeout(switchTurnAndCounter, 1200);
+        } else if (isCorrect) {
             updateTurnIndicator(isHit ? "TOUCHÉ ! CONTINUEZ !" : "À L'EAU... IMMUNITÉ ACTIVÉE !", true);
         } else {
             updateTurnIndicator("ERREUR ! CONTRE-ATTAQUE !", false);
@@ -915,6 +921,13 @@ function computerTurn() {
     const hit = (game.pGrid[y][x] === 1); game.pGrid[y][x] = hit ? 3 : 2;
     updateGameGrids();
     if (checkVictoryCondition()) return;
+    if (game.level === 4) {
+        // Stratège Suprême : un seul tir par tour, quel que soit le résultat
+        game.turn = 'p1';
+        updateGameGrids();
+        updateTurnIndicator(hit ? "L'IA A TOUCHÉ ! À VOUS !" : "L'IA A MANQUÉ ! À VOUS !", true);
+        return;
+    }
     if (hit) {
         updateTurnIndicator("L'IA A TOUCHÉ ! ELLE REJOUE...", false);
         setTimeout(computerTurn, 1200);
@@ -1096,18 +1109,20 @@ function processRemoteAnswer(ans, qObj) {
 
     game.pendingAction = () => {
         const updates = {};
+        let allSunk = false;
         if (isCorrect) {
             updates[`rooms/${game.roomCode}/players/${oppRole}/incoming/${x}_${y}`] = isHit;
             const incomingAfter = Object.assign({}, ((game.room.players[oppRole] && game.room.players[oppRole].incoming) || {}), { [`${x}_${y}`]: isHit });
-            const allSunk = oppShips.length > 0 && oppShips.every(ship => ship.every(c => incomingAfter[`${c.x}_${c.y}`] === true));
+            allSunk = oppShips.length > 0 && oppShips.every(ship => ship.every(c => incomingAfter[`${c.x}_${c.y}`] === true));
             if (allSunk) {
                 updates[`rooms/${game.roomCode}/status`] = 'finished';
                 updates[`rooms/${game.roomCode}/winner`] = game.myRole;
             }
-            updateTurnIndicator(isHit ? "TOUCHÉ ! CONTINUEZ !" : "À L'EAU... IMMUNITÉ ACTIVÉE !", true);
-        } else {
+        }
+        if (!allSunk) {
+            // Duel à distance : tour strictement alterné, un seul tir par tour
             updates[`rooms/${game.roomCode}/turn`] = oppRole;
-            updateTurnIndicator("ERREUR ! TOUR DE VOTRE CAMARADE...", false);
+            updateTurnIndicator(isCorrect ? "TOUR TERMINÉ. AU TOUR DE VOTRE CAMARADE..." : "ERREUR ! TOUR DE VOTRE CAMARADE...", false);
         }
         fbDb.ref().update(updates);
     };
