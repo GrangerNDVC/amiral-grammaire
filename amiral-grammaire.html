@@ -127,7 +127,23 @@
         .feedback-title { font-size: 3em; margin: 0; text-transform: uppercase; font-weight: 900; }
         .feedback-text { font-size: 1.5em; color: var(--gold-accent); margin: 10px 0; }
         .feedback-expl { font-size: 1.3em; max-width: 700px; margin: 20px auto; padding: 20px; background: rgba(255,255,255,0.1); border-radius: 10px; font-style: italic; line-height: 1.6; }
-        #confetti-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 300; display: none; }
+        #confetti-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 240; display: none; }
+
+        /* --- VICTOIRE (3 degrés de flamboyance) --- */
+        #victory-overlay { z-index: 260; background: rgba(2,10,20,0.6); flex-direction: column; }
+        #victory-content { position: relative; text-align: center; animation: victoryPop 0.5s cubic-bezier(0.175,0.885,0.32,1.275); padding: 20px; }
+        @keyframes victoryPop { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        #victory-emoji { font-size: 4em; margin-bottom: 5px; }
+        #victory-emoji.spin { animation: spinTrophy 3s linear infinite; display: inline-block; }
+        @keyframes spinTrophy { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        #victory-title { font-size: 1.8em; color: var(--gold-accent); text-transform: uppercase; letter-spacing: 2px; margin: 0 0 5px 0; text-shadow: 0 0 20px rgba(212,175,55,0.7); }
+        #victory-name { font-weight: 900; color: white; text-transform: uppercase; letter-spacing: 3px; margin: 10px 0; background: linear-gradient(90deg,#f1c40f,#e74c3c,#f1c40f,#3498db,#f1c40f); background-size: 300% auto; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: shimmer 3s linear infinite; }
+        @keyframes shimmer { to { background-position: 300% center; } }
+        #victory-subtitle { font-size: 1.2em; color: var(--miss-color); margin-bottom: 25px; }
+        .victory-tier-1 #victory-name { font-size: 2.4em; }
+        .victory-tier-2 #victory-name { font-size: 3.1em; animation: shimmer 2.2s linear infinite, victoryNameBounce 0.9s ease-in-out infinite alternate; }
+        .victory-tier-3 #victory-name { font-size: 4em; animation: shimmer 1.6s linear infinite, victoryNameBounce 0.7s ease-in-out infinite alternate; }
+        @keyframes victoryNameBounce { from { transform: scale(1); } to { transform: scale(1.07); } }
 
         @keyframes flashTurn { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
         .active-turn { animation: flashTurn 2s infinite; }
@@ -195,6 +211,11 @@
 
     <div id="remote-screen" class="screen">
         <h2>🌐 Duel à distance</h2>
+        <div class="mode-card" style="width:90%; max-width:420px;">
+            <h3>👤 Votre prénom</h3>
+            <p>Il s'affichera en grand si vous remportez la partie !</p>
+            <input id="player-name-input" type="text" maxlength="20" placeholder="Ex : Léa" style="font-size:1.3em; text-align:center; padding:8px; border-radius:8px; border:2px solid #bdc3c7; width:80%;">
+        </div>
         <div class="mode-card">
             <h3>🆕 Créer une partie</h3>
             <p>Un code à 4 chiffres sera généré. Donnez-le à votre camarade (à l'oral, sur un post-it...).</p>
@@ -252,6 +273,16 @@
     </div>
 
     <canvas id="confetti-canvas"></canvas>
+
+    <div id="victory-overlay" class="overlay">
+        <div id="victory-content">
+            <div id="victory-emoji"></div>
+            <h1 id="victory-title"></h1>
+            <div id="victory-name"></div>
+            <div id="victory-subtitle"></div>
+            <button class="btn btn-gold" onclick="closeVictory()">CONTINUER</button>
+        </div>
+    </div>
 
     <!-- SDK Firebase (compat), utilisé uniquement pour le duel à distance -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -491,9 +522,9 @@ const database = [
 
 /* Catégories pour l'affichage en liste complète (niveau Stratège) */
 const funcCategories = {
-    "Fonctions Essentielles": ["Sujet", "COD", "COI", "Attribut du Sujet", "Attribut du COD", "C. Essentiel de Lieu", "C. Essentiel de Temps", "Complément d'Agent"],
+    "Fonctions Essentielles": ["Sujet", "COD", "COI", "Attribut du Sujet", "Attribut du COD", "C. Essentiel de Lieu", "C. Essentiel de Temps"],
     "Compléments Circonstanciels": ["CC Temps", "CC Lieu", "CC Manière", "CC Moyen", "CC But", "CC Cause", "CC Conséquence", "CC Accompagnement", "CC Condition"],
-    "Autres Fonctions": ["Complément du Nom", "Epithète Liée", "Epithète Détachée", "Complément de l'Adverbe", "Complément du Pronom", "Complément de l'Adjectif", "Complément de l'Antécédent", "Détermine le nom"]
+    "Autres Fonctions": ["Complément du Nom", "Epithète Liée", "Epithète Détachée", "Complément de l'Adverbe", "Complément du Pronom", "Complément de l'Adjectif", "Complément de l'Antécédent", "Détermine le nom", "Complément d'Agent"]
 };
 
 /* ================= CONFIGURATION FIREBASE (duel à distance) =================
@@ -547,7 +578,7 @@ let game = {
     levelsWon: new Set(),  // niveaux 1-3 remportés cette session (débloque le niveau 4)
     testMode: false,       // mode développeur : débloque le niveau 4 + place/gagne instantanément
     // --- état du duel à distance ---
-    roomCode: null, myRole: null, room: null,
+    roomCode: null, myRole: null, room: null, myName: null,
     remoteGrid: null, remoteShips: [], remotePlacementStarted: false
 };
 
@@ -902,8 +933,15 @@ function checkVictoryCondition() {
     return false;
 }
 function onLocalWin() {
-    if (game.level < 4) game.levelsWon.add(game.level);
-    triggerWin('Joueur');
+    if (game.level < 4) {
+        game.levelsWon.add(game.level);
+        triggerWin('Joueur', 1);
+        return;
+    }
+    let tier = 1;
+    if (game.aiFailChance <= 0.15) tier = 3;
+    else if (game.aiFailChance <= 0.35) tier = 2;
+    triggerWin('Joueur', tier);
 }
 function onLocalLoss() {
     setTimeout(() => { alert("Flotte détruite... Retraite ! Retour à la sélection des niveaux."); backToLevelSelect(); }, 500);
@@ -916,13 +954,16 @@ function backToLevelSelect() {
 /* ================= DUEL À DISTANCE (Firebase, code à 4 chiffres) ================= */
 function createRemoteRoom() {
     if (!ensureFirebase()) return;
+    const name = document.getElementById('player-name-input').value.trim();
+    if (!name) { alert("Entrez votre prénom avant de créer une partie."); return; }
+    game.myName = name;
     const code = String(Math.floor(1000 + Math.random() * 9000));
     game.roomCode = code; game.myRole = 'p1';
     const roomData = {
         createdAt: firebase.database.ServerValue.TIMESTAMP,
         status: 'waiting', size: levels[4].size, shipsConfig: levels[4].ships,
         turn: 'p1', winner: null,
-        players: { p1: { ships: null, incoming: {}, ready: false }, p2: null }
+        players: { p1: { ships: null, incoming: {}, ready: false, name: name }, p2: null }
     };
     fbDb.ref('rooms/' + code).set(roomData).then(() => {
         document.getElementById('remote-status').innerHTML = `Code de la partie : <span style="font-size:2em;letter-spacing:6px;color:var(--gold-accent)">${code}</span><br>En attente d'un camarade...`;
@@ -931,15 +972,18 @@ function createRemoteRoom() {
 }
 function joinRemoteRoom() {
     if (!ensureFirebase()) return;
+    const name = document.getElementById('player-name-input').value.trim();
+    if (!name) { alert("Entrez votre prénom avant de rejoindre une partie."); return; }
     const code = document.getElementById('join-code-input').value.trim();
     if (!/^[0-9]{4}$/.test(code)) { alert("Entrez un code à 4 chiffres valide."); return; }
+    game.myName = name;
     const ref = fbDb.ref('rooms/' + code);
     ref.get().then(snap => {
         if (!snap.exists()) { alert("Aucune partie avec ce code."); return; }
         const room = snap.val();
         if (room.players && room.players.p2) { alert("Cette partie est déjà complète."); return; }
         game.roomCode = code; game.myRole = 'p2';
-        ref.child('players/p2').set({ ships: null, incoming: {}, ready: false }).then(() => {
+        ref.child('players/p2').set({ ships: null, incoming: {}, ready: false, name: name }).then(() => {
             ref.child('status').set('placing');
             document.getElementById('remote-status').innerText = "Connecté ! Préparez votre flotte...";
             listenToRoom(code);
@@ -985,10 +1029,11 @@ function onRemoteRoomUpdate() {
     }
 
     if (room.status === 'finished') {
-        const iWon = room.winner === game.myRole;
+        const winnerRole = room.winner;
+        const winnerName = (room.players[winnerRole] && room.players[winnerRole].name) || (winnerRole === 'p1' ? 'Joueur 1' : 'Joueur 2');
         fbDb.ref('rooms/' + game.roomCode).off();
-        const finishedCode = game.roomCode; game.roomCode = null;
-        triggerWin(iWon ? 'Vous' : 'Votre camarade');
+        game.roomCode = null;
+        triggerWin(winnerName, 3);
     }
 }
 function finishRemotePlacement() {
@@ -1063,25 +1108,90 @@ function processRemoteAnswer(ans, qObj) {
 }
 
 /* ================= VICTOIRE ================= */
-function triggerWin(winnerName) {
+let confettiRunning = false;
+function triggerWin(winnerName, tier) {
+    tier = tier || 1;
+    showVictoryOverlay(winnerName, tier);
+    runConfetti(tier);
+    playFanfare(tier);
+}
+function showVictoryOverlay(winnerName, tier) {
+    const overlay = document.getElementById('victory-overlay');
+    overlay.className = 'overlay victory-tier-' + tier;
+    overlay.style.display = 'flex';
+
+    const emoji = document.getElementById('victory-emoji');
+    const title = document.getElementById('victory-title');
+    const nameEl = document.getElementById('victory-name');
+    const sub = document.getElementById('victory-subtitle');
+
+    nameEl.innerText = winnerName.toUpperCase();
+    emoji.classList.remove('spin');
+    if (tier >= 3) {
+        emoji.innerHTML = '👑🏆👑'; emoji.classList.add('spin');
+        title.innerText = 'VICTOIRE ÉCLATANTE !';
+        sub.innerText = 'Grand Amiral de la Flotte !';
+    } else if (tier === 2) {
+        emoji.innerHTML = '🥇🎉';
+        title.innerText = 'BELLE VICTOIRE !';
+        sub.innerText = 'Un vrai stratège !';
+    } else {
+        emoji.innerHTML = '🎉';
+        title.innerText = 'VICTOIRE !';
+        sub.innerText = 'Beau travail, Amiral.';
+    }
+}
+function closeVictory() {
+    document.getElementById('victory-overlay').style.display = 'none';
+    confettiRunning = false;
+    document.getElementById('confetti-canvas').style.display = 'none';
+    backToLevelSelect();
+}
+function runConfetti(tier) {
     const canvas = document.getElementById('confetti-canvas'); canvas.style.display = 'block';
     const ctx = canvas.getContext('2d'); canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-    let particles = []; const colors = ['#f1c40f', '#e74c3c', '#3498db', '#ecf0f1', '#9b59b6'];
-    for (let i = 0; i < 150; i++) particles.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height - canvas.height, color: colors[Math.floor(Math.random() * colors.length)], size: Math.random() * 10 + 5, speedY: Math.random() * 5 + 2, speedX: Math.random() * 4 - 2 });
-    let running = true;
+    const count = tier >= 3 ? 400 : tier === 2 ? 240 : 120;
+    const colors = ['#f1c40f', '#e74c3c', '#3498db', '#ecf0f1', '#9b59b6', '#2ecc71'];
+    let particles = [];
+    for (let i = 0; i < count; i++) particles.push({
+        x: Math.random() * canvas.width, y: Math.random() * canvas.height - canvas.height,
+        color: colors[Math.floor(Math.random() * colors.length)], size: Math.random() * 10 + 4,
+        speedY: Math.random() * 5 + 2, speedX: Math.random() * 4 - 2, rot: Math.random() * 360, rotSpeed: Math.random() * 10 - 5
+    });
+    confettiRunning = true;
     function animate() {
-        if (!running) return;
+        if (!confettiRunning) return;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.font = "bold 46px Segoe UI"; ctx.fillStyle = "white"; ctx.textAlign = "center"; ctx.fillText(`VICTOIRE, ${winnerName.toUpperCase()} !`, canvas.width / 2, canvas.height / 2);
-        particles.forEach(p => { ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.size, p.size); p.y += p.speedY; p.x += p.speedX; if (p.y > canvas.height) p.y = -10; });
+        particles.forEach(p => {
+            ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot * Math.PI / 180);
+            ctx.fillStyle = p.color; ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+            ctx.restore();
+            p.y += p.speedY; p.x += p.speedX; p.rot += p.rotSpeed;
+            if (p.y > canvas.height) p.y = -10;
+        });
         requestAnimationFrame(animate);
     }
     animate();
-    setTimeout(() => {
-        running = false; canvas.style.display = 'none';
-        alert(`Victoire, ${winnerName} !`);
-        backToLevelSelect();
-    }, 3000);
+}
+function playFanfare(tier) {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const now = ctx.currentTime;
+        const notes = tier >= 3 ? [523.25, 659.25, 783.99, 1046.50, 783.99, 1046.50]
+            : tier === 2 ? [523.25, 659.25, 783.99, 1046.50]
+                : [523.25, 783.99];
+        let t = now;
+        notes.forEach(freq => {
+            const osc = ctx.createOscillator(); const gain = ctx.createGain();
+            osc.type = 'triangle'; osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.0001, t);
+            gain.gain.exponentialRampToValueAtTime(0.3, t + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.start(t); osc.stop(t + 0.3);
+            t += 0.16;
+        });
+    } catch (e) { /* audio indisponible, on ignore silencieusement */ }
 }
 
 /* ================= INITIALISATION ================= */
