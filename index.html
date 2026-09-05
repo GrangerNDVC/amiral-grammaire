@@ -1434,6 +1434,17 @@ function playFanfare(tier) {
     } catch (e) { /* audio indisponible, on ignore silencieusement */ }
 }
 
+/* ================= RESYNCHRONISATION AU RETOUR SUR L'ONGLET =================
+   Un onglet inactif est mis en veille par le navigateur (timers/écoutes ralentis),
+   ce qui peut donner l'impression que le duel Vitesse "attend son tour" alors que
+   la partie a en fait déjà avancé côté serveur. Dès que l'onglet redevient visible,
+   on force un re-rendu immédiat à partir du dernier état connu. */
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && game.mode === 'remote' && game.room) {
+        onRemoteRoomUpdate();
+    }
+});
+
 /* ================= INITIALISATION ================= */
 updateLevel4Lock();
 </script>
