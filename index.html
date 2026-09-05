@@ -220,13 +220,22 @@
             <input id="player-name-input" type="text" maxlength="20" placeholder="Ex : Léa" style="font-size:1.3em; text-align:center; padding:8px; border-radius:8px; border:2px solid #bdc3c7; width:80%;">
         </div>
         <div class="mode-card">
-            <h3>🆕 Créer une partie</h3>
-            <p>Un code à 4 chiffres sera généré. Donnez-le à votre camarade. Choisissez le temps de réponse pour la partie (identique pour vous deux) :</p>
+            <h3>🆕 Créer une partie — Tour par tour</h3>
+            <p>Un code à 4 chiffres sera généré. Donnez-le à votre camarade. Chacun tire à son tour. Choisissez le temps de réponse (identique pour vous deux) :</p>
             <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:6px;">
-                <button class="btn" style="padding:10px 14px; font-size:0.8em; margin:3px;" onclick="createRemoteRoom(null)">🕊 Illimité</button>
-                <button class="btn" style="padding:10px 14px; font-size:0.8em; margin:3px;" onclick="createRemoteRoom(10)">🐢 10s</button>
-                <button class="btn" style="padding:10px 14px; font-size:0.8em; margin:3px;" onclick="createRemoteRoom(5)">🐇 5s</button>
-                <button class="btn btn-dark" style="padding:10px 14px; font-size:0.8em; margin:3px;" onclick="createRemoteRoom(3)">⚡ 3s</button>
+                <button class="btn" style="padding:10px 14px; font-size:0.8em; margin:3px;" onclick="createRemoteRoom(null, 'turns')">🕊 Illimité</button>
+                <button class="btn" style="padding:10px 14px; font-size:0.8em; margin:3px;" onclick="createRemoteRoom(10, 'turns')">🐢 10s</button>
+                <button class="btn" style="padding:10px 14px; font-size:0.8em; margin:3px;" onclick="createRemoteRoom(5, 'turns')">🐇 5s</button>
+                <button class="btn btn-dark" style="padding:10px 14px; font-size:0.8em; margin:3px;" onclick="createRemoteRoom(3, 'turns')">⚡ 3s</button>
+            </div>
+        </div>
+        <div class="mode-card">
+            <h3>🏎️ Créer une partie — Vitesse</h3>
+            <p>Même question pour les deux joueurs, en même temps ! Le plus rapide à répondre <strong>juste</strong> choisit où tirer. S'il répond <strong>faux</strong>, c'est l'autre qui tire. Un chrono est obligatoire :</p>
+            <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:6px;">
+                <button class="btn" style="padding:10px 14px; font-size:0.8em; margin:3px;" onclick="createRemoteRoom(10, 'speed')">🐢 10s</button>
+                <button class="btn" style="padding:10px 14px; font-size:0.8em; margin:3px;" onclick="createRemoteRoom(5, 'speed')">🐇 5s</button>
+                <button class="btn btn-dark" style="padding:10px 14px; font-size:0.8em; margin:3px;" onclick="createRemoteRoom(3, 'speed')">⚡ 3s</button>
             </div>
         </div>
         <div class="mode-card">
@@ -590,7 +599,13 @@ let game = {
     currentQuestion: null,
     // --- état du duel à distance ---
     roomCode: null, myRole: null, room: null, myName: null,
-    remoteGrid: null, remoteShips: [], remotePlacementStarted: false
+    remoteGrid: null, remoteShips: [], remotePlacementStarted: false,
+    // --- état du duel à distance en mode VITESSE ---
+    speedMode: false,          // true si la room a gameMode:'speed'
+    speedLastRoundId: 0,       // dernier roundId affiché (évite de rouvrir la question)
+    speedAnswered: false,      // vrai dès que ma réponse est envoyée pour ce round
+    speedRoundStart: null,     // horodatage local de l'ouverture de la question (chrono de vitesse)
+    speedAwaitingShot: false   // vrai si c'est à MOI de choisir une case ce round
 };
 
 const levels = {
@@ -812,7 +827,14 @@ function askQuestion() {
     const qList = database.filter(q => q.lvl <= Math.min(game.level, 3));
     const q = qList[Math.floor(Math.random() * qList.length)];
     game.currentQuestion = q;
+    renderQuestionUI(q, (ans) => handleAnswerSelected(ans, q));
+    document.getElementById('question-modal').style.display = 'flex';
+    startQuestionTimer();
+}
 
+/* Affiche la phrase + les options de réponse dans la modale, quel que soit le mode de jeu.
+   onAnswer(ans) est appelé avec la fonction choisie (ex: "COD") quand le joueur clique une option. */
+function renderQuestionUI(q, onAnswer) {
     document.getElementById('q-sentence').innerHTML = q.sentence.replace(/\[(.*?)\]/, '<span class="highlight">$1</span>');
 
     const modalBox = document.querySelector('#question-modal .modal-box');
@@ -826,7 +848,7 @@ function askQuestion() {
             const h = document.createElement('h4'); h.innerText = cat; div.appendChild(h);
             funcs.forEach(f => {
                 const btn = document.createElement('div'); btn.className = 'func-btn'; btn.innerText = f;
-                btn.onclick = () => handleAnswerSelected(f, q);
+                btn.onclick = () => onAnswer(f);
                 div.appendChild(btn);
             });
             c.appendChild(div);
@@ -839,9 +861,17 @@ function askQuestion() {
         const opts = [q.func, ...wrongs].sort(() => 0.5 - Math.random());
         opts.forEach(o => {
             const btn = document.createElement('div'); btn.className = 'opt-btn'; btn.innerText = o;
-            btn.onclick = () => handleAnswerSelected(o, q); c.appendChild(btn);
+            btn.onclick = () => onAnswer(o); c.appendChild(btn);
         });
     }
+}
+
+/* Affiche la MÊME question pour les deux joueurs en duel Vitesse. */
+function askSpeedQuestion(q) {
+    game.currentQuestion = q;
+    game.speedAnswered = false;
+    game.speedRoundStart = Date.now();
+    renderQuestionUI(q, (ans) => handleAnswerSelected(ans, q));
     document.getElementById('question-modal').style.display = 'flex';
     startQuestionTimer();
 }
@@ -883,8 +913,12 @@ function handleTimeUp() {
 
 function handleAnswerSelected(ans, qObj) {
     clearQuestionTimer();
-    if (game.mode === 'remote') processRemoteAnswer(ans, qObj);
-    else processLocalAnswer(ans, qObj);
+    if (game.mode === 'remote') {
+        if (game.speedMode) submitSpeedAnswer(ans, qObj);
+        else processRemoteAnswer(ans, qObj);
+    } else {
+        processLocalAnswer(ans, qObj);
+    }
 }
 
 function processLocalAnswer(ans, qObj) {
@@ -1014,17 +1048,24 @@ function backToLevelSelect() {
 }
 
 /* ================= DUEL À DISTANCE (Firebase, code à 4 chiffres) ================= */
-function createRemoteRoom(timerSeconds) {
+function resetSpeedLocalState() {
+    game.speedMode = false; game.speedLastRoundId = 0; game.speedAnswered = false;
+    game.speedRoundStart = null; game.speedAwaitingShot = false;
+}
+function createRemoteRoom(timerSeconds, gameMode) {
     if (!ensureFirebase()) return;
     const name = document.getElementById('player-name-input').value.trim();
     if (!name) { alert("Entrez votre prénom avant de créer une partie."); return; }
     game.myName = name;
     const code = String(Math.floor(1000 + Math.random() * 9000));
     game.roomCode = code; game.myRole = 'p1';
+    resetSpeedLocalState();
     const roomData = {
         createdAt: firebase.database.ServerValue.TIMESTAMP,
         status: 'waiting', size: levels[4].size, shipsConfig: levels[4].ships,
         turn: 'p1', winner: null, timerSeconds: timerSeconds,
+        gameMode: gameMode || 'turns',
+        roundQuestion: null, roundAnswers: null, roundOutcome: null, awaitingShotFrom: null, roundId: 0,
         players: { p1: { ships: null, incoming: {}, ready: false, name: name }, p2: null }
     };
     fbDb.ref('rooms/' + code).set(roomData).then(() => {
@@ -1039,6 +1080,7 @@ function joinRemoteRoom() {
     const code = document.getElementById('join-code-input').value.trim();
     if (!/^[0-9]{4}$/.test(code)) { alert("Entrez un code à 4 chiffres valide."); return; }
     game.myName = name;
+    resetSpeedLocalState();
     const ref = fbDb.ref('rooms/' + code);
     ref.get().then(snap => {
         if (!snap.exists()) { alert("Aucune partie avec ce code."); return; }
@@ -1087,11 +1129,16 @@ function onRemoteRoomUpdate() {
     if (room.status === 'playing') {
         game.remotePlacementStarted = false;
         game.level = 4; game.size = room.size;
+        game.speedMode = (room.gameMode === 'speed');
         applyScreenWidth();
         showScreen('game-screen');
         renderRemoteGrids();
-        const myTurn = room.turn === game.myRole;
-        updateTurnIndicator(myTurn ? "À VOUS DE JOUER !" : "TOUR DE VOTRE CAMARADE...", myTurn);
+        if (game.speedMode) {
+            handleSpeedRoomUpdate(room);
+        } else {
+            const myTurn = room.turn === game.myRole;
+            updateTurnIndicator(myTurn ? "À VOUS DE JOUER !" : "TOUR DE VOTRE CAMARADE...", myTurn);
+        }
         applyTestModeUI();
         return;
     }
@@ -1150,10 +1197,17 @@ function renderRemoteGrids() {
     titles[1].innerText = 'VOTRE FLOTTE';
 }
 function handleRemoteAttackClick(x, y) {
-    if (!game.room || game.room.status !== 'playing' || game.room.turn !== game.myRole) return;
+    if (!game.room || game.room.status !== 'playing') return;
     const oppRole = game.myRole === 'p1' ? 'p2' : 'p1';
     const incoming = (game.room.players[oppRole] && game.room.players[oppRole].incoming) || {};
     if (incoming[`${x}_${y}`] !== undefined) return;
+
+    if (game.speedMode) {
+        if (!game.speedAwaitingShot) return; // ce n'est pas à moi de tirer ce round
+        resolveSpeedShot(x, y);
+        return;
+    }
+    if (game.room.turn !== game.myRole) return;
     game.target = { x, y };
     askQuestion();
 }
@@ -1184,6 +1238,110 @@ function processRemoteAnswer(ans, qObj) {
             // Duel à distance : tour strictement alterné, un seul tir par tour
             updates[`rooms/${game.roomCode}/turn`] = oppRole;
             updateTurnIndicator(isCorrect ? "TOUR TERMINÉ. AU TOUR DE VOTRE CAMARADE..." : "ERREUR ! TOUR DE VOTRE CAMARADE...", false);
+        }
+        fbDb.ref().update(updates);
+    };
+}
+
+/* ================= DUEL À DISTANCE — MODE VITESSE =================
+   Principe : même question envoyée aux deux joueurs en même temps. Chacun répond de son
+   côté ; celui qui répond le plus vite (elapsedMs le plus petit) "gagne la course" :
+   - s'il avait juste, c'est LUI qui choisit une case à tirer ;
+   - s'il avait faux, c'est l'AUTRE joueur qui tire (sans avoir eu besoin de répondre juste
+     lui-même : la rapidité + une bonne réponse est récompensée, une mauvaise réponse rapide
+     est punie).
+   Par convention, c'est toujours p1 (créateur de la partie) qui génère la question suivante
+   et qui tranche la course dès que les deux réponses sont arrivées, pour éviter que les deux
+   clients n'écrivent des données concurrentes dans Firebase. */
+function handleSpeedRoomUpdate(room) {
+    // 1) Un tir est en attente : on affiche qui doit tirer et on s'arrête là.
+    if (room.awaitingShotFrom) {
+        const iAmShooter = room.awaitingShotFrom === game.myRole;
+        const outcome = room.roundOutcome || {};
+        const iWasFastest = outcome.fastest === game.myRole;
+        let msg;
+        if (iAmShooter && iWasFastest) msg = "⚡ RAPIDE ET JUSTE ! CHOISISSEZ UNE CASE !";
+        else if (iAmShooter && !iWasFastest) msg = "Votre camarade a répondu vite mais s'est trompé : À VOUS DE TIRER !";
+        else if (!iAmShooter && iWasFastest) msg = "Vous avez répondu vite mais faux : votre camarade tire...";
+        else msg = "Votre camarade a été le plus rapide et juste : il tire...";
+        updateTurnIndicator(msg, iAmShooter);
+        game.speedAwaitingShot = iAmShooter;
+        return;
+    }
+    game.speedAwaitingShot = false;
+
+    // 2) Personne n'attend de tirer : l'hôte (p1) lance une nouvelle question si besoin.
+    if (game.myRole === 'p1' && !room.roundQuestion) {
+        startNewSpeedRound();
+        return;
+    }
+
+    // 3) Une question est en cours : on l'affiche une seule fois par round.
+    if (room.roundQuestion && game.speedLastRoundId !== room.roundId) {
+        game.speedLastRoundId = room.roundId;
+        askSpeedQuestion(room.roundQuestion);
+    } else if (room.roundQuestion) {
+        updateTurnIndicator(game.speedAnswered ? "Réponse envoyée. En attente de votre camarade..." : "⚡ RÉPONDEZ LE PLUS VITE POSSIBLE !", !game.speedAnswered);
+    }
+
+    // 4) L'hôte (p1) tranche la course dès que les deux réponses sont là.
+    const answers = room.roundAnswers || {};
+    if (game.myRole === 'p1' && room.roundQuestion && answers.p1 && answers.p2) {
+        resolveSpeedRound(room);
+    }
+}
+function startNewSpeedRound() {
+    const qList = database.filter(q => q.lvl <= 3);
+    const q = qList[Math.floor(Math.random() * qList.length)];
+    const nextId = ((game.room && game.room.roundId) || 0) + 1;
+    fbDb.ref('rooms/' + game.roomCode).update({
+        roundQuestion: { sentence: q.sentence, func: q.func, expl: q.expl },
+        roundId: nextId, roundAnswers: null, roundOutcome: null, awaitingShotFrom: null
+    });
+}
+function submitSpeedAnswer(ans, qObj) {
+    if (game.speedAnswered) return; // anti double-envoi (double-clic, etc.)
+    game.speedAnswered = true;
+    document.getElementById('question-modal').style.display = 'none';
+    const elapsedMs = Date.now() - (game.speedRoundStart || Date.now());
+    const isCorrect = (ans === qObj.func);
+    updateTurnIndicator("Réponse envoyée. En attente de votre camarade...", false);
+    fbDb.ref(`rooms/${game.roomCode}/roundAnswers/${game.myRole}`).set({ ans: ans, correct: isCorrect, elapsedMs: elapsedMs });
+}
+function resolveSpeedRound(room) {
+    const a1 = room.roundAnswers.p1, a2 = room.roundAnswers.p2;
+    if (a1.elapsedMs === a2.elapsedMs) {
+        // Égalité parfaite (très rare) : personne ne tire, nouvelle question directement.
+        fbDb.ref('rooms/' + game.roomCode).update({ roundQuestion: null, roundAnswers: null });
+        return;
+    }
+    const fastest = (a1.elapsedMs < a2.elapsedMs) ? 'p1' : 'p2';
+    const fastestCorrect = (fastest === 'p1') ? a1.correct : a2.correct;
+    const shooter = fastestCorrect ? fastest : (fastest === 'p1' ? 'p2' : 'p1');
+    fbDb.ref('rooms/' + game.roomCode).update({ awaitingShotFrom: shooter, roundOutcome: { fastest, fastestCorrect } });
+}
+function resolveSpeedShot(x, y) {
+    game.speedAwaitingShot = false; // évite un double-tir pendant la latence réseau
+    const oppRole = game.myRole === 'p1' ? 'p2' : 'p1';
+    const oppShips = (game.room.players[oppRole] && game.room.players[oppRole].ships) || [];
+    const isHit = oppShips.some(ship => ship.some(c => c.x === x && c.y === y));
+
+    showFeedback(true, isHit, null, isHit ? "Beau tir, amiral !" : "Raté... nouvelle question tout de suite !", false);
+
+    game.pendingAction = () => {
+        const updates = {};
+        updates[`rooms/${game.roomCode}/players/${oppRole}/incoming/${x}_${y}`] = isHit;
+        const incomingAfter = Object.assign({}, ((game.room.players[oppRole] && game.room.players[oppRole].incoming) || {}), { [`${x}_${y}`]: isHit });
+        const allSunk = oppShips.length > 0 && oppShips.every(ship => ship.every(c => incomingAfter[`${c.x}_${c.y}`] === true));
+        if (allSunk) {
+            updates[`rooms/${game.roomCode}/status`] = 'finished';
+            updates[`rooms/${game.roomCode}/winner`] = game.myRole;
+        } else {
+            // Round suivant : on efface la question / les réponses / le tireur désigné.
+            updates[`rooms/${game.roomCode}/awaitingShotFrom`] = null;
+            updates[`rooms/${game.roomCode}/roundQuestion`] = null;
+            updates[`rooms/${game.roomCode}/roundAnswers`] = null;
+            updates[`rooms/${game.roomCode}/roundOutcome`] = null;
         }
         fbDb.ref().update(updates);
     };
